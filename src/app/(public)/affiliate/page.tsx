@@ -26,7 +26,7 @@ export default function AffiliatePage() {
         </ol>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <Link
-            href="/account"
+            href="/dashboard"
             className="motion-base rounded-sm border border-action-primary bg-action-primary px-3 py-2 type-label text-text-inverse hover:bg-action-primary-hover"
           >
             Open my dashboard

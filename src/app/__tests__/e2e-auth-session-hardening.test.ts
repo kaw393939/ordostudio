@@ -192,7 +192,7 @@ describe("e2e auth session hardening", () => {
       new Request("http://localhost:3000/api/v1/me", {
         method: "GET",
         headers: {
-          cookie: fixture.adminCookie,
+          cookie: fixture.superAdminCookie,
         },
       }),
     );
@@ -206,7 +206,7 @@ describe("e2e auth session hardening", () => {
         method: "POST",
         headers: {
           origin: "http://localhost:3000",
-          cookie: fixture.adminCookie,
+          cookie: fixture.superAdminCookie,
         },
       }),
     );
@@ -215,7 +215,7 @@ describe("e2e auth session hardening", () => {
     const usersAfterExpiry = await getUsers(
       new Request("http://localhost:3000/api/v1/users", {
         headers: {
-          cookie: fixture.adminCookie,
+          cookie: fixture.superAdminCookie,
         },
       }),
     );

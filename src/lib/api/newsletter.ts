@@ -352,6 +352,51 @@ export const attachFieldReportToNewsletterIssue = (input: {
   }
 };
 
+export const attachIngestedItemToNewsletterIssue = (input: {
+  issueId: string;
+  ingestedItemId: string;
+  tag?: NewsletterSection;
+  actor: ApiActor;
+  requestId: string;
+}): NewsletterIssueDetail => {
+  const config = resolveConfig({ envVars: process.env });
+  const db = openCliDb(config);
+
+  try {
+    ensureIssue(db, input.issueId);
+    const now = new Date().toISOString();
+
+    const item = db
+      .prepare(
+        "SELECT id FROM ingested_items WHERE id = ?",
+      )
+      .get(input.ingestedItemId) as { id: string } | undefined;
+
+    if (!item) {
+      throw new Error("ingested_item_not_found");
+    }
+
+    const tag: NewsletterSection = input.tag ?? "FROM_FIELD";
+
+    db.prepare(
+      "INSERT OR IGNORE INTO newsletter_issue_ingested_items (id, issue_id, ingested_item_id, tag, created_at) VALUES (?, ?, ?, ?, ?)",
+    ).run(randomUUID(), input.issueId, input.ingestedItemId, tag, now);
+
+    appendAuditLog(db, {
+      actorType: input.actor.type,
+      actorId: input.actor.id,
+      action: "api.newsletter.issue.attach_ingested_item",
+      targetType: "newsletter_issue",
+      requestId: input.requestId,
+      metadata: { issueId: input.issueId, ingestedItemId: input.ingestedItemId, tag },
+    });
+
+    return getNewsletterIssue(input.issueId);
+  } finally {
+    db.close();
+  }
+};
+
 export const subscribeNewsletter = (input: { email: string; requestId: string }): { ok: true } => {
   const config = resolveConfig({ envVars: process.env });
   const db = openCliDb(config);

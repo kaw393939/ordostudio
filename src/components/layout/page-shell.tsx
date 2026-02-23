@@ -12,7 +12,7 @@ type PageShellProps = {
 
 export function PageShell({ title, subtitle, breadcrumbs, children, className }: PageShellProps) {
   return (
-    <main id="main-content" tabIndex={-1} className={cn("container-grid py-6", className)}>
+    <main id="main-content" className={cn("container-grid py-6", className)}>
       <header className="mb-6">
         {breadcrumbs ? <Breadcrumbs items={breadcrumbs} /> : null}
         <h1 className="type-h2 text-text-primary">{title}</h1>

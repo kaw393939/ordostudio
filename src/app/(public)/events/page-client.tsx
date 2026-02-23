@@ -181,6 +181,30 @@ export default function EventsPageClient() {
 
   return (
     <PageShell title="Events" subtitle="Discover current and upcoming events.">
+      <div className="mb-8 surface-elevated p-6 rounded-lg border border-border-subtle">
+        <h2 className="type-title text-text-primary mb-2">Field Work & Live Sessions</h2>
+        <p className="type-body-sm text-text-secondary mb-4">
+          Our events are where we test new frameworks, share field reports, and build the Studio Ordo community. 
+          Whether you're joining a technical workshop or a leadership briefing, you'll leave with actionable artifacts.
+        </p>
+        <div className="flex flex-wrap gap-4">
+          <Button
+            intent="primary"
+            onClick={() => {
+              updateUrlState({ status: "upcoming", from: "", to: "", page: 1 });
+            }}
+          >
+            View Upcoming Events
+          </Button>
+          <Link
+            href="/studio/report"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-border-subtle bg-surface hover:bg-surface-hover text-text-primary px-4 py-2"
+          >
+            Submit a Field Report
+          </Link>
+        </div>
+      </div>
+
       <Card className="p-4">
         <form
           className="flex gap-2"

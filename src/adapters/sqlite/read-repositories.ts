@@ -49,6 +49,9 @@ export interface UserReadRecord {
   id: string;
   email: string;
   status: string;
+  display_name?: string | null;
+  bio?: string | null;
+  profile_picture_url?: string | null;
   created_at: string;
   updated_at: string;
   roles: string[];
@@ -375,7 +378,7 @@ ORDER BY r.name ASC
 
       const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
       const query = `
-SELECT DISTINCT u.id, u.email, u.status, u.created_at, u.updated_at
+SELECT DISTINCT u.id, u.email, u.status, u.display_name, u.bio, u.profile_picture_url, u.created_at, u.updated_at
 FROM users u
 ${joins.join(" ")}
 ${whereClause}
@@ -387,6 +390,9 @@ LIMIT ? OFFSET ?
         id: string;
         email: string;
         status: string;
+        display_name: string | null;
+        bio: string | null;
+        profile_picture_url: string | null;
         created_at: string;
         updated_at: string;
       }[];
@@ -404,12 +410,15 @@ LIMIT ? OFFSET ?
     const db = openDb(this.config);
     try {
       const row = db
-        .prepare("SELECT id, email, status, created_at, updated_at FROM users WHERE id = ?")
+        .prepare("SELECT id, email, status, display_name, bio, profile_picture_url, created_at, updated_at FROM users WHERE id = ?")
         .get(id) as
         | {
             id: string;
             email: string;
             status: string;
+            display_name: string | null;
+            bio: string | null;
+            profile_picture_url: string | null;
             created_at: string;
             updated_at: string;
           }

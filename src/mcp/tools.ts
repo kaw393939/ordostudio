@@ -1,16 +1,18 @@
 import type { ApiActor } from "../lib/api/actor";
 import { updateIntakeRequest, getIntakeRequestById, listIntakeRequests } from "../lib/api/intake";
-import { approveDealAdmin, assignDealAdmin, listDealsAdmin, type DealStatus } from "../lib/api/deals";
+import { assignDealAdmin, listDealsAdmin, type DealStatus } from "../lib/api/deals";
 import { getFieldReportAdmin, listFieldReportsAdmin, setFieldReportFeatured } from "../lib/api/field-reports";
 import {
   createNewsletterIssue,
   attachFieldReportToNewsletterIssue,
+  attachIngestedItemToNewsletterIssue,
   exportNewsletterMarkdown,
   generateNewsletterDraft,
-  scheduleNewsletterSend,
 } from "../lib/api/newsletter";
 import type { NewsletterSection } from "../lib/api/newsletter";
 import { listAuditEntries } from "../lib/api/audit";
+import { ingestItem, listIngestedItems } from "../lib/api/ingestion";
+import { createActionProposal } from "../lib/api/action-proposals";
 
 type JsonSchema = Record<string, unknown>;
 
@@ -73,6 +75,75 @@ const takeFirstNonEmptyLine = (value: unknown): string | null => {
 
 export const createToolRegistry = () => {
   const tools: Tool[] = [
+    {
+      name: "ingest_item",
+      description: "Ingest an item from an external source (e.g., Meetup, YouTube) into the platform.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sourceType: { type: "string" },
+          externalId: { type: "string" },
+          canonicalUrl: { type: "string" },
+          title: { type: "string" },
+          summary: { type: "string" },
+          rawPayload: { type: "object" },
+          normalizedPayload: { type: "object" },
+        },
+        required: ["sourceType", "externalId", "canonicalUrl", "title", "rawPayload", "normalizedPayload"],
+        additionalProperties: false,
+      },
+      handler: (args, ctx) => {
+        const input = args as any;
+        return ingestItem(ctx.actor, {
+          sourceType: input.sourceType,
+          externalId: input.externalId,
+          canonicalUrl: input.canonicalUrl,
+          title: input.title,
+          summary: input.summary,
+          rawPayload: input.rawPayload,
+          normalizedPayload: input.normalizedPayload,
+        });
+      },
+    },
+    {
+      name: "list_ingested_items",
+      description: "List ingested items.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sourceType: { type: "string" },
+        },
+        additionalProperties: false,
+      },
+      handler: (args, ctx) => {
+        const input = (args ?? {}) as Record<string, unknown>;
+        return listIngestedItems(ctx.actor, typeof input.sourceType === "string" ? input.sourceType : undefined);
+      },
+    },
+    {
+      name: "attach_ingested_item_to_newsletter",
+      description: "Attach an ingested item to a newsletter issue.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          issueId: { type: "string" },
+          ingestedItemId: { type: "string" },
+          tag: { type: "string" },
+        },
+        required: ["issueId", "ingestedItemId"],
+        additionalProperties: false,
+      },
+      handler: (args, ctx) => {
+        const input = args as any;
+        return attachIngestedItemToNewsletterIssue({
+          issueId: input.issueId,
+          ingestedItemId: input.ingestedItemId,
+          tag: input.tag,
+          actor: ctx.actor,
+          requestId: ctx.requestId,
+        });
+      },
+    },
     {
       name: "list_intake",
       description: "List intake requests (admin).",
@@ -216,13 +287,13 @@ export const createToolRegistry = () => {
       handler: (args, ctx) => {
         const input = (args ?? {}) as Record<string, unknown>;
         if (typeof input.deal_id !== "string" || input.deal_id.trim().length === 0) throw new Error("deal_id_required");
-        requireConfirm(`approve_deal:${input.deal_id}`, input.confirm);
-
-        return approveDealAdmin({
-          dealId: input.deal_id,
-          note: typeof input.note === "string" ? input.note : null,
-          actor: ctx.actor,
-          requestId: ctx.requestId,
+        
+        return createActionProposal({
+          action_type: "APPROVE_DEAL",
+          payload: { deal_id: input.deal_id, note: input.note },
+          preconditions: { status: "ASSIGNED" },
+          risk_level: "HIGH",
+          proposed_by: ctx.actor.id || undefined,
         });
       },
     },
@@ -459,12 +530,13 @@ export const createToolRegistry = () => {
       handler: (args, ctx) => {
         const input = (args ?? {}) as Record<string, unknown>;
         if (typeof input.issue_id !== "string" || input.issue_id.trim().length === 0) throw new Error("issue_id_required");
-        requireConfirm(`schedule_newsletter:${input.issue_id}`, input.confirm);
-        return scheduleNewsletterSend({
-          issueId: input.issue_id,
-          scheduledFor: typeof input.scheduled_for === "string" ? input.scheduled_for : "",
-          actor: ctx.actor,
-          requestId: ctx.requestId,
+        
+        return createActionProposal({
+          action_type: "SCHEDULE_NEWSLETTER",
+          payload: { issue_id: input.issue_id, scheduled_for: input.scheduled_for },
+          preconditions: { status: "DRAFT" },
+          risk_level: "MEDIUM",
+          proposed_by: ctx.actor.id || undefined,
         });
       },
     },
@@ -511,6 +583,31 @@ export const createToolRegistry = () => {
           to: typeof input.to === "string" ? input.to : undefined,
           limit: typeof input.limit === "number" ? input.limit : undefined,
           offset: typeof input.offset === "number" ? input.offset : undefined,
+        });
+      },
+    },
+    {
+      name: "propose_action",
+      description: "Propose an action that requires human approval (e.g., sending a newsletter, processing a refund).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          action_type: { type: "string", description: "The type of action being proposed (e.g., 'SEND_NEWSLETTER')" },
+          payload: { type: "object", description: "The data required to execute the action" },
+          preconditions: { type: "object", description: "Conditions that must be met for the action to be valid" },
+          risk_level: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"], description: "The risk level of the action" },
+        },
+        required: ["action_type", "payload", "preconditions", "risk_level"],
+        additionalProperties: false,
+      },
+      handler: (args, ctx) => {
+        const input = args as Record<string, unknown>;
+        return createActionProposal({
+          action_type: String(input.action_type),
+          payload: input.payload,
+          preconditions: input.preconditions,
+          risk_level: input.risk_level as "LOW" | "MEDIUM" | "HIGH",
+          proposed_by: ctx.actor.id || undefined,
         });
       },
     },

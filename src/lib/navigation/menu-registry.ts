@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export type MenuName = "publicHeader" | "publicFooter" | "adminHeaderQuick" | "adminPrimary";
+export type MenuName = "publicHeader" | "publicFooter" | "adminHeaderQuick" | "adminPrimary" | "userAccount";
 export type MenuAudience = "guest" | "user" | "admin";
 
 export type MenuContext = {
@@ -69,7 +69,9 @@ const menus: Record<MenuName, readonly MenuItem[]> = {
     { id: "studio-report", label: "Submit report", href: "/studio/report", match: "exact", roles: ["APPRENTICE"], audience: ["user", "admin"] },
     { id: "book", label: "Book consult", href: "/services/request", match: "exact", includeInSitemap: true },
     { id: "login", label: "Login", href: "/login", match: "exact", audience: ["guest"] },
-    { id: "account", label: "Dashboard", href: "/account", match: "exact", audience: ["user", "admin"] },
+    { id: "dashboard", label: "Dashboard", href: "/dashboard", match: "exact", audience: ["user", "admin"] },
+    { id: "account", label: "My account", href: "/account", match: "exact", audience: ["user", "admin"] },
+    { id: "logout", label: "Logout", href: "/logout", match: "exact", audience: ["user", "admin"] },
   ]),
   publicFooter: registerMenu("publicFooter", [
     { id: "apprentices", label: "Apprentices", href: "/apprentices", match: "prefix", includeInSitemap: true },
@@ -82,6 +84,7 @@ const menus: Record<MenuName, readonly MenuItem[]> = {
   ]),
   adminHeaderQuick: registerMenu("adminHeaderQuick", [
     { id: "admin-home", label: "Admin Console", href: "/admin", match: "exact", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
+    { id: "admin-approvals", label: "Approvals", href: "/admin/approvals", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
     { id: "admin-deals", label: "Deals", href: "/admin/deals", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
     { id: "admin-intake", label: "Intake", href: "/admin/intake", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN"] },
     { id: "admin-events", label: "Events", href: "/admin/events", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
@@ -89,29 +92,36 @@ const menus: Record<MenuName, readonly MenuItem[]> = {
   ]),
   adminPrimary: registerMenu("adminPrimary", [
     { id: "admin-home", label: "Admin Console", href: "/admin", match: "exact", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
+    { id: "admin-approvals", label: "Approvals", href: "/admin/approvals", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
     { id: "admin-deals", label: "Deals", href: "/admin/deals", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
 
     { id: "admin-events", label: "Events", href: "/admin/events", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
-    { id: "admin-registrations", label: "Registrations", href: "/admin/registrations", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN"] },
-    { id: "admin-engagements", label: "Engagements", href: "/admin/engagements", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN"] },
+    { id: "admin-registrations", label: "Registrations", href: "/admin/registrations", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
+    { id: "admin-engagements", label: "Engagements", href: "/admin/engagements", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
 
-    { id: "admin-offers", label: "Offers", href: "/admin/offers", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN"] },
+    { id: "admin-offers", label: "Offers", href: "/admin/offers", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
     { id: "admin-intake", label: "Intake", href: "/admin/intake", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN"] },
-    { id: "admin-commercial", label: "Commercial", href: "/admin/commercial", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN"] },
+    { id: "admin-commercial", label: "Commercial", href: "/admin/commercial", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
 
     { id: "admin-ledger", label: "Ledger", href: "/admin/ledger", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN"] },
-    { id: "admin-measurement", label: "Measurement", href: "/admin/measurement", match: "exact", audience: ["admin"], roles: ["SUPER_ADMIN"] },
-    { id: "admin-flywheel", label: "Flywheel", href: "/admin/flywheel", match: "exact", audience: ["admin"], roles: ["SUPER_ADMIN"] },
 
+    { id: "admin-measurement", label: "Measurement", href: "/admin/measurement", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
+    { id: "admin-flywheel", label: "Flywheel", href: "/admin/flywheel", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
     { id: "admin-entitlements", label: "Entitlements", href: "/admin/entitlements", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
-    { id: "admin-apprentices", label: "Apprentices", href: "/admin/apprentices", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN"] },
-    { id: "admin-field-reports", label: "Field reports", href: "/admin/field-reports", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN"] },
-    { id: "admin-referrals", label: "Referrals", href: "/admin/referrals", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN"] },
+
+    { id: "admin-apprentices", label: "Apprentices", href: "/admin/apprentices", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
+    { id: "admin-field-reports", label: "Field reports", href: "/admin/field-reports", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
+    { id: "admin-referrals", label: "Referrals", href: "/admin/referrals", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
     { id: "admin-newsletter", label: "Newsletter", href: "/admin/newsletter", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
 
-    { id: "admin-users", label: "Users", href: "/admin/users", match: "exact", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN"] },
-    { id: "admin-settings", label: "Settings", href: "/admin/settings", match: "exact", audience: ["admin"], roles: ["SUPER_ADMIN"] },
-    { id: "admin-audit", label: "Audit", href: "/admin/audit", match: "exact", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN"] },
+    { id: "admin-users", label: "Users", href: "/admin/users", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
+    { id: "admin-settings", label: "Settings", href: "/admin/settings", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
+    { id: "admin-audit", label: "Audit", href: "/admin/audit", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
+  ]),
+  userAccount: registerMenu("userAccount", [
+    { id: "dashboard", label: "Dashboard", href: "/dashboard", match: "exact", audience: ["user", "admin"] },
+    { id: "profile", label: "Profile", href: "/account", match: "exact", audience: ["user", "admin"] },
+    { id: "apprentice-profile", label: "Apprentice Profile", href: "/dashboard/apprentice-profile", match: "exact", audience: ["user", "admin"], roles: ["APPRENTICE"] },
   ]),
 };
 

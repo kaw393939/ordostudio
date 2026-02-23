@@ -218,16 +218,18 @@ export default function AboutPage() {
       </section>
 
       {/* Page CTA */}
-      <section className="mt-6 surface-elevated p-6 text-center">
+      <section className="mt-6 surface-elevated p-6 text-center rounded-lg border border-border-subtle">
         <h2 className="type-title text-text-primary">Ready to bring order to AI in your organization?</h2>
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-          <Link
-            href="/services/request"
-            className="motion-base rounded-sm border border-action-primary bg-action-primary px-3 py-2 type-label text-text-inverse hover:bg-action-primary-hover"
+        <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
+          <a
+            href="https://cal.com/alex-macaw/30min"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center rounded-md bg-text-primary px-6 py-3 text-sm font-medium text-bg-primary hover:bg-text-secondary transition-colors"
           >
-            Book a technical consult
-          </Link>
-          <Link href="/newsletter" className="type-label underline">
+            Book a Technical Consult
+          </a>
+          <Link href="/newsletter" className="type-label text-text-secondary hover:text-text-primary underline underline-offset-4">
             Subscribe to the Ordo Brief &rarr;
           </Link>
         </div>

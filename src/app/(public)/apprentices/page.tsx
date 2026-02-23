@@ -30,6 +30,21 @@ export default function ApprenticesDirectoryPage() {
       title="Apprentices"
       subtitle="Independent consultants affiliated with Studio Ordo. Standardized offers. Maestro supervision."
     >
+      <div className="mb-8 surface-elevated p-6 text-center rounded-lg border border-border-subtle">
+        <h2 className="type-title text-text-primary mb-2">Looking for specialized AI talent?</h2>
+        <p className="type-body-sm text-text-secondary mb-4">
+          Our apprentices are independent consultants trained in the Studio Ordo method. We can help match you with the right expert for your project.
+        </p>
+        <a
+          href="https://cal.com/alex-macaw/30min"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center rounded-md bg-text-primary px-6 py-3 text-sm font-medium text-bg-primary hover:bg-text-secondary transition-colors"
+        >
+          Get Matched
+        </a>
+      </div>
+
       {items.length === 0 ? (
         <Card className="p-6">
           <p className="type-body-sm text-text-secondary">No apprentices are listed yet.</p>

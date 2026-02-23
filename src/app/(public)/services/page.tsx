@@ -44,10 +44,18 @@ export default function ServicesPage() {
       </section>
 
       <section className="mt-6 surface-elevated p-6 text-center">
-        <p className="type-body-sm text-text-secondary">
+        <p className="type-body-sm text-text-secondary mb-4">
           Not sure which track fits? Book a 30-minute technical consult. No pitch deck. We&apos;ll discuss your
           team&apos;s current state and recommend a starting point.
         </p>
+        <a
+          href="https://cal.com/alex-macaw/30min"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center rounded-md bg-text-primary px-6 py-3 text-sm font-medium text-bg-primary hover:bg-text-secondary transition-colors"
+        >
+          Book a Technical Consult
+        </a>
       </section>
     </PageShell>
   );

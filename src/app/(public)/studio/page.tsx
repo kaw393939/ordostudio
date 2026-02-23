@@ -54,7 +54,7 @@ export default function StudioPage() {
       title="Studio"
       subtitle="Not a certificate. A portfolio of shipped work."
     >
-      <section className="surface overflow-hidden rounded-sm border border-border-default">
+      <section className="surface overflow-hidden rounded-sm border border-border-default relative">
         <Image
           src="/studio/studio-banner.png"
           alt="Studio Ordo workshop desk — calm, disciplined craft"
@@ -65,34 +65,34 @@ export default function StudioPage() {
         />
       </section>
 
-      {/* Section 01 \u2014 The Model */}
-      <section className="mt-6 surface p-6">
-        <p className="type-meta text-text-muted">The Model</p>
-        <div className="mt-4 grid gap-6 md:grid-cols-3">
-          <div className="md:col-span-2">
-            <h2 className="type-title text-text-primary">The bottega model. Updated for the AI era.</h2>
-            <div className="mt-4 space-y-3 type-body-sm text-text-secondary">
-          <p>
-            A bottega was a Renaissance workshop &mdash; the place where apprentices learned by producing real work under
-            the guidance of a master craftsman. Leonardo da Vinci trained in Verrocchio&apos;s bottega not by attending
-            lectures but by grinding pigments, preparing canvases, and eventually painting the angel that surpassed the
-            master.
-          </p>
-          <p>
-            Studio Ordo works the same way. You learn by shipping. Every level produces artifacts &mdash; real,
-            evaluable, portfolio-ready work that demonstrates capability. There are no multiple-choice exams.
-            There&apos;s no seat time requirement. Progress is measured by what you produce, judged against professional
-            standards.
-          </p>
-          <p>
-            The maestro (Keith Williams, 23 years, 10,000+ students) provides structured guidance, code review, project
-            feedback, and the &ldquo;invisible curriculum&rdquo; &mdash; the professional vocabulary, judgment patterns,
-            and failure modes that only come from experience.
-          </p>
+      {/* Executive Summary & CTA */}
+      <section className="mt-6 surface-elevated p-6 rounded-lg border border-border-subtle">
+        <div className="grid gap-6 md:grid-cols-2 items-center">
+          <div>
+            <h2 className="type-title text-text-primary mb-2">The Studio Apprenticeship</h2>
+            <p className="type-body-sm text-text-secondary mb-4">
+              A 12–18 month guided progression from working developer to AI-capable engineer. 
+              For developers who want to direct AI agents, not just prompt them.
+            </p>
+            <ul className="space-y-2 type-body-sm text-text-secondary mb-6 list-disc list-inside">
+              <li><strong>What you'll do:</strong> Ship 8 production-grade projects under maestro supervision.</li>
+              <li><strong>What you'll have:</strong> A portfolio of evaluable artifacts, not a multiple-choice certificate.</li>
+            </ul>
+            <div className="flex flex-wrap items-center gap-4">
+              <a
+                href="https://cal.com/alex-macaw/30min"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center rounded-md bg-text-primary px-6 py-3 text-sm font-medium text-bg-primary hover:bg-text-secondary transition-colors"
+              >
+                Book a Technical Consult
+              </a>
+              <Link href="/resources/context-pack" className="type-label text-text-secondary hover:text-text-primary underline underline-offset-4">
+                Get the Context Pack Starter Kit &rarr;
+              </Link>
             </div>
           </div>
-
-          <div className="md:col-span-1">
+          <div className="hidden md:block">
             <div className="overflow-hidden rounded-sm border border-border-default bg-surface">
               <Image
                 src="/studio/studio-artifact.png"
@@ -102,8 +102,32 @@ export default function StudioPage() {
                 className="h-auto w-full"
               />
             </div>
-            <p className="mt-2 type-meta text-text-muted">
-              Proof over vibes: specs, checklists, and shipped artifacts.
+          </div>
+        </div>
+      </section>
+
+      {/* Section 01 \u2014 The Model */}
+      <section className="mt-6 surface p-6">
+        <p className="type-meta text-text-muted">The Model</p>
+        <div className="mt-4">
+          <h2 className="type-title text-text-primary">The bottega model. Updated for the AI era.</h2>
+          <div className="mt-4 space-y-3 type-body-sm text-text-secondary">
+            <p>
+              A bottega was a Renaissance workshop &mdash; the place where apprentices learned by producing real work under
+              the guidance of a master craftsman. Leonardo da Vinci trained in Verrocchio&apos;s bottega not by attending
+              lectures but by grinding pigments, preparing canvases, and eventually painting the angel that surpassed the
+              master.
+            </p>
+            <p>
+              Studio Ordo works the same way. You learn by shipping. Every level produces artifacts &mdash; real,
+              evaluable, portfolio-ready work that demonstrates capability. There are no multiple-choice exams.
+              There&apos;s no seat time requirement. Progress is measured by what you produce, judged against professional
+              standards.
+            </p>
+            <p>
+              The maestro (Keith Williams, 23 years, 10,000+ students) provides structured guidance, code review, project
+              feedback, and the &ldquo;invisible curriculum&rdquo; &mdash; the professional vocabulary, judgment patterns,
+              and failure modes that only come from experience.
             </p>
           </div>
         </div>
@@ -224,53 +248,73 @@ export default function StudioPage() {
 
       {/* Section 04 \u2014 Gate Projects */}
       <section className="mt-6">
-        <h2 className="type-title text-text-primary">Eight projects. Each one proves a capability.</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {gateProjects.map((gp) => (
-            <Card key={gp.gate} className="p-4">
-              <div className="flex items-center gap-2">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-muted type-meta text-text-primary">
-                  {gp.gate}
-                </span>
-                <Badge variant="outline">{gp.level}</Badge>
-              </div>
-              <h3 className="mt-3 type-label text-text-primary">{gp.title}</h3>
-              <p className="mt-1 type-body-sm text-text-secondary">{gp.description}</p>
-              <p className="mt-2 type-meta text-text-muted">Proves: {gp.proves}</p>
-            </Card>
-          ))}
-        </div>
+        <details className="group surface p-6 rounded-lg border border-border-subtle [&_summary::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer items-center justify-between">
+            <div>
+              <h2 className="type-title text-text-primary">Eight projects. Each one proves a capability.</h2>
+              <p className="mt-1 type-body-sm text-text-secondary">View the full gate project progression.</p>
+            </div>
+            <span className="ml-4 flex h-8 w-8 items-center justify-center rounded-full bg-surface-muted text-text-secondary group-open:rotate-180 transition-transform">
+              ↓
+            </span>
+          </summary>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            {gateProjects.map((gp) => (
+              <Card key={gp.gate} className="p-4">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-muted type-meta text-text-primary">
+                    {gp.gate}
+                  </span>
+                  <Badge variant="outline">{gp.level}</Badge>
+                </div>
+                <h3 className="mt-3 type-label text-text-primary">{gp.title}</h3>
+                <p className="mt-1 type-body-sm text-text-secondary">{gp.description}</p>
+                <p className="mt-2 type-meta text-text-muted">Proves: {gp.proves}</p>
+              </Card>
+            ))}
+          </div>
+        </details>
       </section>
 
       {/* Section 05 \u2014 Role Readiness */}
-      <section className="mt-6 surface p-6">
-        <h2 className="type-title text-text-primary">Where the levels map to in the market.</h2>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full type-body-sm">
-            <thead>
-              <tr className="border-b border-border-default">
-                <th className="pb-2 text-left type-label text-text-primary">Studio Level</th>
-                <th className="pb-2 text-left type-label text-text-primary">Market Role</th>
-                <th className="pb-2 text-left type-label text-text-primary">Salary Range</th>
-                <th className="pb-2 text-left type-label text-text-primary">What Employers See</th>
-              </tr>
-            </thead>
-            <tbody className="text-text-secondary">
-              {roleReadiness.map((rr) => (
-                <tr key={rr.level} className="border-b border-border-default">
-                  <td className="py-2">{rr.level}</td>
-                  <td className="py-2">{rr.role}</td>
-                  <td className="py-2">{rr.salary}</td>
-                  <td className="py-2">{rr.signal}</td>
+      <section className="mt-6">
+        <details className="group surface p-6 rounded-lg border border-border-subtle [&_summary::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer items-center justify-between">
+            <div>
+              <h2 className="type-title text-text-primary">Where the levels map to in the market.</h2>
+              <p className="mt-1 type-body-sm text-text-secondary">View role readiness and salary expectations.</p>
+            </div>
+            <span className="ml-4 flex h-8 w-8 items-center justify-center rounded-full bg-surface-muted text-text-secondary group-open:rotate-180 transition-transform">
+              ↓
+            </span>
+          </summary>
+          <div className="mt-6 overflow-x-auto">
+            <table className="w-full type-body-sm">
+              <thead>
+                <tr className="border-b border-border-default">
+                  <th className="pb-2 text-left type-label text-text-primary">Studio Level</th>
+                  <th className="pb-2 text-left type-label text-text-primary">Market Role</th>
+                  <th className="pb-2 text-left type-label text-text-primary">Salary Range</th>
+                  <th className="pb-2 text-left type-label text-text-primary">What Employers See</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="mt-3 type-meta text-text-muted">
-          BLS projects 26% growth for software developers 2022\u20132032. AI-skill job postings up 68% (UMD Smith School).
-          NYC/NJ AI engineer median: $184K\u2013$213K+ (Glassdoor, 2025).
-        </p>
+              </thead>
+              <tbody className="text-text-secondary">
+                {roleReadiness.map((rr) => (
+                  <tr key={rr.level} className="border-b border-border-default">
+                    <td className="py-2">{rr.level}</td>
+                    <td className="py-2">{rr.role}</td>
+                    <td className="py-2">{rr.salary}</td>
+                    <td className="py-2">{rr.signal}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3 type-meta text-text-muted">
+            BLS projects 26% growth for software developers 2022\u20132032. AI-skill job postings up 68% (UMD Smith School).
+            NYC/NJ AI engineer median: $184K\u2013$213K+ (Glassdoor, 2025).
+          </p>
+        </details>
       </section>
 
       {/* Section 06 \u2014 CEO of Agents */}
@@ -288,8 +332,8 @@ export default function StudioPage() {
             ship.
           </p>
           <p>
-            The Context Pack is your operating document. The AI Audit Log is your decision trail. The Spell Book is your
-            professional vocabulary. Together, they make you the CEO of your AI agents &mdash; accountable, structured,
+            The <Link href="/resources/context-pack" className="underline hover:text-text-primary">Context Pack</Link> (your structured project brief) is your operating document. The AI Audit Log is your decision trail. The <Link href="/resources/spell-book" className="underline hover:text-text-primary">Spell Book</Link> is your
+            shared professional vocabulary. Together, they make you the CEO of your AI agents &mdash; accountable, structured,
             and effective.
           </p>
         </div>
@@ -307,21 +351,23 @@ export default function StudioPage() {
       </section>
 
       {/* Page CTA */}
-      <section className="mt-6 surface-elevated p-6 text-center">
+      <section className="mt-6 surface-elevated p-6 text-center rounded-lg border border-border-subtle">
         <h2 className="type-title text-text-primary">Ready to see if the studio is right for you?</h2>
-        <p className="mt-2 type-body-sm text-text-secondary">
+        <p className="mt-2 type-body-sm text-text-secondary mb-6">
           Book a 30-minute technical consult. We&apos;ll review your current skills, discuss your goals, and determine
           which level you&apos;d start at.
         </p>
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-          <Link
-            href="/services/request"
-            className="motion-base rounded-sm border border-action-primary bg-action-primary px-3 py-2 type-label text-text-inverse hover:bg-action-primary-hover"
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <a
+            href="https://cal.com/alex-macaw/30min"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center rounded-md bg-text-primary px-6 py-3 text-sm font-medium text-bg-primary hover:bg-text-secondary transition-colors"
           >
-            Book a technical consult
-          </Link>
-          <Link href="/insights" className="type-label underline">
-            Get the Spell Book PDF &rarr;
+            Book a Technical Consult
+          </a>
+          <Link href="/resources/context-pack" className="type-label text-text-secondary hover:text-text-primary underline underline-offset-4">
+            Get the Context Pack Starter Kit &rarr;
           </Link>
         </div>
       </section>

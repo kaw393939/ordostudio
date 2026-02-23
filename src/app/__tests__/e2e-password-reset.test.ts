@@ -68,6 +68,7 @@ describe("e2e password reset", () => {
         headers: {
           "content-type": "application/json",
           origin: "http://localhost:3000",
+          "x-forwarded-for": "198.51.100.71",
         },
         body: JSON.stringify({ email: "reset-user@example.com", password: "Password123!" }),
       }),
@@ -80,6 +81,7 @@ describe("e2e password reset", () => {
         headers: {
           "content-type": "application/json",
           origin: "http://localhost:3000",
+          "x-forwarded-for": "198.51.100.71",
         },
         body: JSON.stringify({
           token: requestBody.reset_token,
@@ -96,6 +98,7 @@ describe("e2e password reset", () => {
         headers: {
           "content-type": "application/json",
           origin: "http://localhost:3000",
+          "x-forwarded-for": "198.51.100.71",
         },
         body: JSON.stringify({ email: "reset-user@example.com", password: "Password123!" }),
       }),
@@ -108,6 +111,7 @@ describe("e2e password reset", () => {
         headers: {
           "content-type": "application/json",
           origin: "http://localhost:3000",
+          "x-forwarded-for": "198.51.100.71",
         },
         body: JSON.stringify({ email: "reset-user@example.com", password: "NewPassword123!" }),
       }),

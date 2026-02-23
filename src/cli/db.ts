@@ -1064,6 +1064,67 @@ CREATE INDEX IF NOT EXISTS idx_gate_submissions_project ON apprentice_gate_submi
 CREATE INDEX IF NOT EXISTS idx_vocabulary_user ON apprentice_vocabulary(user_id);
 `,
   },
+  {
+    name: "026_mcp_ingestion_contracts",
+    sql: `
+CREATE TABLE IF NOT EXISTS ingested_items (
+  id TEXT PRIMARY KEY,
+  source_type TEXT NOT NULL,
+  external_id TEXT NOT NULL,
+  content_hash TEXT NOT NULL,
+  canonical_url TEXT NOT NULL,
+  title TEXT NOT NULL,
+  summary TEXT,
+  raw_payload TEXT NOT NULL,
+  normalized_payload TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE(source_type, external_id)
+);
+
+CREATE TABLE IF NOT EXISTS newsletter_issue_ingested_items (
+  id TEXT PRIMARY KEY,
+  issue_id TEXT NOT NULL,
+  ingested_item_id TEXT NOT NULL,
+  tag TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(issue_id, ingested_item_id, tag),
+  FOREIGN KEY (issue_id) REFERENCES newsletter_issues(id) ON DELETE CASCADE,
+  FOREIGN KEY (ingested_item_id) REFERENCES ingested_items(id) ON DELETE CASCADE,
+  CHECK (tag IN ('MODELS','MONEY','PEOPLE','FROM_FIELD'))
+);
+`,
+  },
+  {
+    name: "027_user_profiles",
+    sql: `
+ALTER TABLE users ADD COLUMN display_name TEXT;
+ALTER TABLE users ADD COLUMN bio TEXT;
+ALTER TABLE users ADD COLUMN profile_picture_url TEXT;
+`,
+  },
+  {
+    name: "028_action_proposals",
+    sql: `
+CREATE TABLE IF NOT EXISTS action_proposals (
+  id TEXT PRIMARY KEY,
+  action_type TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  preconditions TEXT NOT NULL,
+  risk_level TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'PENDING',
+  proposed_by TEXT,
+  proposed_at TEXT NOT NULL,
+  reviewed_by TEXT,
+  reviewed_at TEXT,
+  rationale TEXT,
+  FOREIGN KEY (proposed_by) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+  CHECK (risk_level IN ('LOW','MEDIUM','HIGH')),
+  CHECK (status IN ('PENDING','APPROVED','DENIED','EXPIRED'))
+);
+`,
+  },
 ];
 
 const ensureMetaTable = (db: Database.Database): void => {

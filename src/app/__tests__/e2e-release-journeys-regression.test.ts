@@ -221,14 +221,14 @@ describe("e2e release journeys regression", () => {
     );
     expect(meBefore.status).toBe(200);
     const meBeforeBody = await meBefore.json();
-    expect(meBeforeBody._links.users.href).toBe("/api/v1/users");
+    expect(meBeforeBody.roles).toContain("ADMIN");
 
     const roleRemoval = await deleteRole(
       new Request(`http://localhost:3000/api/v1/users/${fixture.adminId}/roles/ADMIN?confirm=true`, {
         method: "DELETE",
         headers: {
           origin: "http://localhost:3000",
-          cookie: fixture.adminCookie,
+          cookie: fixture.superAdminCookie,
         },
       }),
       { params: Promise.resolve({ id: fixture.adminId, role: "ADMIN" }) },
@@ -242,13 +242,25 @@ describe("e2e release journeys regression", () => {
     );
     expect(meAfter.status).toBe(200);
     const meAfterBody = await meAfter.json();
-    expect(meAfterBody._links.users).toBeUndefined();
+    expect(meAfterBody.roles).not.toContain("ADMIN");
 
-    const usersAfter = await getUsers(
-      new Request("http://localhost:3000/api/v1/users", {
-        headers: { cookie: fixture.adminCookie },
+    const createAfter = await postEvents(
+      new Request("http://localhost:3000/api/v1/events", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+          cookie: fixture.adminCookie,
+        },
+        body: JSON.stringify({
+          slug: "forbidden-create",
+          title: "Forbidden",
+          start: "2026-11-01T10:00:00.000Z",
+          end: "2026-11-01T11:00:00.000Z",
+          timezone: "UTC",
+        }),
       }),
     );
-    expect(usersAfter.status).toBe(403);
+    expect(createAfter.status).toBe(403);
   });
 });

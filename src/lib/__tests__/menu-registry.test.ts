@@ -9,7 +9,7 @@ describe("menu registry", () => {
   });
 
   it("shows account to authenticated users and hides login", () => {
-    expect(labels("user")).toEqual(["Training", "Events", "Studio", "Book consult", "Dashboard"]);
+    expect(labels("user")).toEqual(["Training", "Events", "Studio", "Book consult", "My account", "Logout"]);
   });
 
   it("shows role-gated items only when role is present", () => {
@@ -32,18 +32,9 @@ describe("menu registry", () => {
       "Admin Console",
       "Deals",
       "Events",
-      "Registrations",
-      "Engagements",
-      "Offers",
       "Intake",
-      "Commercial",
       "Ledger",
-      "Apprentices",
-      "Field reports",
-      "Referrals",
       "Newsletter",
-      "Users",
-      "Audit",
     ]);
 
     expect(resolveMenuForContext("adminPrimary", { audience: "admin", roles: ["MAESTRO"] }).map((item) => item.label)).toEqual([

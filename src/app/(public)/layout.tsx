@@ -12,10 +12,15 @@ export default async function PublicLayout({
   return (
     <>
       <header className="border-b border-border-subtle bg-surface">
-        <div className="container-grid flex items-center justify-between gap-4 py-4">
-          <Link href="/" className="motion-base shrink-0 type-label text-text-primary" aria-label="Studio Ordo home">
-            Studio Ordo
-          </Link>
+        <div className="border-b border-border-subtle/60">
+          <div className="container-grid flex items-center justify-between gap-4 py-2">
+            <Link href="/" className="motion-base shrink-0 type-label text-text-primary" aria-label="Studio Ordo home">
+              Studio Ordo
+            </Link>
+          </div>
+        </div>
+
+        <div className="container-grid py-2">
           <MenuNav
             menu="publicHeader"
             context={context}

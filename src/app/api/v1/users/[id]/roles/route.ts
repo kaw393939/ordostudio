@@ -30,14 +30,14 @@ const requireAdmin = (request: Request) => {
     };
   }
 
-  if (!user.roles.includes("ADMIN") && !user.roles.includes("SUPER_ADMIN")) {
+  if (!user.roles.includes("SUPER_ADMIN")) {
     return {
       error: problem(
         {
           type: "https://lms-219.dev/problems/forbidden",
           title: "Forbidden",
           status: 403,
-          detail: "Admin role required.",
+          detail: "Super Admin role required.",
         },
         request,
       ),

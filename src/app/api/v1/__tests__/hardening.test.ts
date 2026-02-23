@@ -180,7 +180,7 @@ describe("api hardening", () => {
 
     const db = new Database(dbPath);
     const user = db.prepare("SELECT id FROM users WHERE email = 'cache-admin@example.com'").get() as { id: string };
-    const role = db.prepare("SELECT id FROM roles WHERE name = 'ADMIN'").get() as { id: string };
+    const role = db.prepare("SELECT id FROM roles WHERE name = 'SUPER_ADMIN'").get() as { id: string };
     db.prepare("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)").run(user.id, role.id);
     db.close();
 

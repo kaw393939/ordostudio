@@ -95,6 +95,14 @@ const addAdminRole = (dbPath: string, email: string) => {
   db.close();
 };
 
+const addSuperAdminRole = (dbPath: string, email: string) => {
+  const db = new Database(dbPath);
+  const user = db.prepare("SELECT id FROM users WHERE email = ?").get(email) as { id: string };
+  const role = db.prepare("SELECT id FROM roles WHERE name = 'SUPER_ADMIN'").get() as { id: string };
+  db.prepare("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)").run(user.id, role.id);
+  db.close();
+};
+
 const userIdByEmail = (dbPath: string, email: string) => {
   const db = new Database(dbPath);
   const user = db.prepare("SELECT id FROM users WHERE email = ?").get(email) as { id: string };
@@ -188,8 +196,10 @@ const registerForEvent = async (cookie: string, slug: string, userId: string) =>
 export type StandardE2EFixture = {
   dbPath: string;
   adminCookie: string;
+  superAdminCookie: string;
   userCookie: string;
   adminId: string;
+  superAdminId: string;
   userId: string;
 };
 
@@ -206,11 +216,14 @@ export const setupStandardE2EFixture = async (): Promise<StandardE2EFixture> => 
 
   await registerUser("usera@example.com");
   await registerUser("admina@example.com");
+  await registerUser("superadmina@example.com");
 
   addAdminRole(dbPath, "admina@example.com");
+  addSuperAdminRole(dbPath, "superadmina@example.com");
 
   const userCookie = await login("usera@example.com");
   const adminCookie = await login("admina@example.com");
+  const superAdminCookie = await login("superadmina@example.com");
 
   await createEvent(adminCookie, {
     slug: "published-open",
@@ -255,6 +268,7 @@ export const setupStandardE2EFixture = async (): Promise<StandardE2EFixture> => 
 
   const userId = userIdByEmail(dbPath, "usera@example.com");
   const adminId = userIdByEmail(dbPath, "admina@example.com");
+  const superAdminId = userIdByEmail(dbPath, "superadmina@example.com");
 
   await registerForEvent(userCookie, "published-open", userId);
   await registerForEvent(userCookie, "published-full", userId);
@@ -262,8 +276,10 @@ export const setupStandardE2EFixture = async (): Promise<StandardE2EFixture> => 
   return {
     dbPath,
     adminCookie,
+    superAdminCookie,
     userCookie,
     adminId,
+    superAdminId,
     userId,
   };
 };

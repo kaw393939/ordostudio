@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { UserAccountNav } from "@/components/navigation/user-account-nav";
 
 export const metadata: Metadata = {
-  title: "Dashboard",
+  title: "My Account",
   openGraph: {
-    title: "Dashboard",
+    title: "My Account",
   },
   alternates: {
     canonical: "/account",
@@ -11,5 +12,12 @@ export const metadata: Metadata = {
 };
 
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return (
+    <>
+      <div className="container-grid pt-6">
+        <UserAccountNav />
+      </div>
+      {children}
+    </>
+  );
 }

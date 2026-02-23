@@ -103,11 +103,11 @@ export default function AccountApprenticeProfilePage() {
     <PageShell
       title="Apprentice profile"
       subtitle="Create your public profile for the Studio Ordo directory. Profiles require approval before publishing."
-      breadcrumbs={[{ label: "Account", href: "/account" }, { label: "Apprentice profile" }]}
+      breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Apprentice profile" }]}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link href="/account" className="type-label underline">
-          Back to account
+        <Link href="/dashboard" className="type-label underline">
+          Back to dashboard
         </Link>
         <Button intent="secondary" onClick={() => void load()} disabled={pending}>
           Refresh

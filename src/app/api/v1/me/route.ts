@@ -1,5 +1,6 @@
 import { getUserFromSession, parseSessionTokenFromCookie } from "../../../../lib/api/auth";
 import { listAuditEntries } from "../../../../lib/api/audit";
+import { getUserById } from "../../../../lib/api/users";
 import { hal, problem } from "../../../../lib/api/response";
 import { withRequestLogging } from "../../../../lib/api/request-logging";
 
@@ -17,8 +18,8 @@ async function _GET(request: Request) {
     );
   }
 
-  const user = getUserFromSession(sessionToken);
-  if (!user) {
+  const sessionUser = getUserFromSession(sessionToken);
+  if (!sessionUser) {
     return problem(
       {
         type: "https://lms-219.dev/problems/unauthorized",
@@ -30,6 +31,8 @@ async function _GET(request: Request) {
     );
   }
 
+  const user = getUserById(sessionUser.id);
+
   const links: Record<string, { href: string }> = {
     self: { href: "/api/v1/me" },
     logout: { href: "/api/v1/auth/logout" },
@@ -39,8 +42,12 @@ async function _GET(request: Request) {
     account_delete: { href: "/api/v1/account/delete" },
   };
 
-  if (user.roles.includes("ADMIN") || user.roles.includes("SUPER_ADMIN")) {
+  if (user.roles.includes("SUPER_ADMIN")) {
     links.users = { href: "/api/v1/users" };
+  }
+
+  if (user.roles.some(role => ["ADMIN", "SUPER_ADMIN", "MAESTRO"].includes(role))) {
+    links.admin = { href: "/admin" };
   }
 
   const lastLogin = listAuditEntries({
@@ -56,6 +63,9 @@ async function _GET(request: Request) {
       email: user.email,
       status: user.status,
       roles: user.roles,
+      display_name: user.display_name,
+      bio: user.bio,
+      profile_picture_url: user.profile_picture_url,
       last_login_at: lastLogin ?? null,
     },
     links,

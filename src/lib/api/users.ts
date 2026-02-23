@@ -239,3 +239,41 @@ export const removeUserRole = (id: string, role: string, actorId: string, reques
     db.close();
   }
 };
+
+export const updateUserProfile = (
+  id: string,
+  profile: { display_name?: string; bio?: string; profile_picture_url?: string },
+) => {
+  const config = resolveConfig({ envVars: process.env });
+  const db = openCliDb(config);
+
+  const updates: string[] = [];
+  const params: any[] = [];
+
+  if (profile.display_name !== undefined) {
+    updates.push("display_name = ?");
+    params.push(profile.display_name);
+  }
+  if (profile.bio !== undefined) {
+    updates.push("bio = ?");
+    params.push(profile.bio);
+  }
+  if (profile.profile_picture_url !== undefined) {
+    updates.push("profile_picture_url = ?");
+    params.push(profile.profile_picture_url);
+  }
+
+  if (updates.length === 0) return;
+
+  updates.push("updated_at = ?");
+  params.push(new Date().toISOString());
+  params.push(id);
+
+  const stmt = db.prepare(`
+    UPDATE users
+    SET ${updates.join(", ")}
+    WHERE id = ?
+  `);
+
+  stmt.run(...params);
+};

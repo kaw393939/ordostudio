@@ -208,7 +208,6 @@ describe("api/v1 auth/session", () => {
     expect(meBody._links).toMatchObject({
       self: { href: "/api/v1/me" },
       logout: { href: "/api/v1/auth/logout" },
-      users: { href: "/api/v1/users" },
     });
   });
 

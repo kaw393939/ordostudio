@@ -56,9 +56,12 @@ export default function Home() {
             </div>
           ))}
         </div>
-        <div className="mt-4">
+        <div className="mt-4 flex flex-wrap items-center gap-4">
           <Link href="/insights" className="type-label underline">
             See the framework →
+          </Link>
+          <Link href="/resources/assessment" className="type-meta text-text-secondary hover:text-text-primary underline">
+            Take the Human Edge Scorecard assessment
           </Link>
         </div>
       </section>
@@ -80,6 +83,13 @@ export default function Home() {
               </span>
               <span>
                 <span className="type-label text-text-primary">{step.label}</span> — {step.detail}
+                {step.label === "Spec" && (
+                  <span className="block mt-1">
+                    <Link href="/resources/context-pack" className="type-meta text-text-secondary hover:text-text-primary underline">
+                      Get the Context Pack Starter Kit
+                    </Link>
+                  </span>
+                )}
               </span>
             </li>
           ))}
@@ -140,6 +150,11 @@ export default function Home() {
             <p className="mt-2 type-meta text-text-muted">
               Leave with: a Context Pack, an AI Audit Log entry, and 8 Spell Book terms.
             </p>
+            <div className="mt-1">
+              <Link href="/resources/spell-book" className="type-meta text-text-secondary hover:text-text-primary underline">
+                Get the Spell Book PDF
+              </Link>
+            </div>
             <p className="mt-2 type-label text-text-primary">From $2,500 per session</p>
             <div className="mt-3">
               <Link href="/services/workshop" className="type-label underline">

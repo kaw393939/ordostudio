@@ -123,7 +123,7 @@ describe("api/v1 users", () => {
     const admin = db.prepare("SELECT id FROM users WHERE email = ?").get("admin@example.com") as {
       id: string;
     };
-    const adminRole = db.prepare("SELECT id FROM roles WHERE name = 'ADMIN'").get() as { id: string };
+    const adminRole = db.prepare("SELECT id FROM roles WHERE name = 'SUPER_ADMIN'").get() as { id: string };
     db.prepare("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)").run(admin.id, adminRole.id);
     db.close();
 
@@ -148,7 +148,7 @@ describe("api/v1 users", () => {
 
     expect(detailResponse.status).toBe(200);
     expect(detailBody.id).toBe(admin.id);
-    expect(detailBody.roles).toContain("ADMIN");
+    expect(detailBody.roles).toContain("SUPER_ADMIN");
   });
 
   it("updates user status and writes audit entry", async () => {
@@ -168,7 +168,7 @@ describe("api/v1 users", () => {
     const target = db.prepare("SELECT id FROM users WHERE email = ?").get("target-user@example.com") as {
       id: string;
     };
-    const adminRole = db.prepare("SELECT id FROM roles WHERE name = 'ADMIN'").get() as { id: string };
+    const adminRole = db.prepare("SELECT id FROM roles WHERE name = 'SUPER_ADMIN'").get() as { id: string };
     db.prepare("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)").run(admin.id, adminRole.id);
     db.close();
 
@@ -214,7 +214,7 @@ describe("api/v1 users", () => {
     const target = db.prepare("SELECT id FROM users WHERE email = ?").get("roles-target@example.com") as {
       id: string;
     };
-    const adminRole = db.prepare("SELECT id FROM roles WHERE name = 'ADMIN'").get() as { id: string };
+    const adminRole = db.prepare("SELECT id FROM roles WHERE name = 'SUPER_ADMIN'").get() as { id: string };
     db.prepare("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)").run(admin.id, adminRole.id);
     db.close();
 

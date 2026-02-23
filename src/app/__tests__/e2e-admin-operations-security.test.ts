@@ -264,7 +264,7 @@ describe("e2e admin operations security", () => {
         headers: {
           "content-type": "application/json",
           origin: "http://localhost:3000",
-          cookie: fixture.adminCookie,
+          cookie: fixture.superAdminCookie,
         },
         body: JSON.stringify({ role: "ADMIN", confirm: true }),
       }),
@@ -279,7 +279,7 @@ describe("e2e admin operations security", () => {
         headers: {
           "content-type": "application/json",
           origin: "http://localhost:3000",
-          cookie: fixture.adminCookie,
+          cookie: fixture.superAdminCookie,
         },
         body: JSON.stringify({ role: "ADMIN", confirm: true }),
       }),
@@ -292,7 +292,7 @@ describe("e2e admin operations security", () => {
         method: "DELETE",
         headers: {
           origin: "http://localhost:3000",
-          cookie: fixture.adminCookie,
+          cookie: fixture.superAdminCookie,
         },
       }),
       { params: Promise.resolve({ id: targetId, role: "ADMIN" }) },
@@ -304,7 +304,7 @@ describe("e2e admin operations security", () => {
         method: "DELETE",
         headers: {
           origin: "http://localhost:3000",
-          cookie: fixture.adminCookie,
+          cookie: fixture.superAdminCookie,
         },
       }),
       { params: Promise.resolve({ id: targetId, role: "ADMIN" }) },
@@ -317,7 +317,7 @@ describe("e2e admin operations security", () => {
         headers: {
           "content-type": "application/json",
           origin: "http://localhost:3000",
-          cookie: fixture.adminCookie,
+          cookie: fixture.superAdminCookie,
         },
         body: JSON.stringify({ role: "SUPER_ADMIN", confirm: true }),
       }),
@@ -331,7 +331,7 @@ describe("e2e admin operations security", () => {
         headers: {
           "content-type": "application/json",
           origin: "http://localhost:3000",
-          cookie: fixture.adminCookie,
+          cookie: fixture.superAdminCookie,
         },
         body: JSON.stringify({ status: "DISABLED", confirm: true }),
       }),
@@ -360,7 +360,7 @@ describe("e2e admin operations security", () => {
         headers: {
           "content-type": "application/json",
           origin: "http://localhost:3000",
-          cookie: fixture.adminCookie,
+          cookie: fixture.superAdminCookie,
         },
         body: JSON.stringify({ status: "ACTIVE", confirm: true }),
       }),
@@ -388,7 +388,7 @@ describe("e2e admin operations security", () => {
     const filtered = await getUsers(
       new Request("http://localhost:3000/api/v1/users?search=usera@example.com&role=USER&status=ACTIVE", {
         headers: {
-          cookie: fixture.adminCookie,
+          cookie: fixture.superAdminCookie,
         },
       }),
     );

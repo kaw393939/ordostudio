@@ -94,29 +94,35 @@ export default function InsightsPage() {
 
       {/* Lead Magnets Preview */}
       <section className="mt-6 grid gap-3 lg:grid-cols-3">
-        <Card className="p-5">
+        <Card className="p-5 flex flex-col">
           <h3 className="type-label text-text-primary">Spell Book PDF</h3>
-          <p className="mt-2 type-body-sm text-text-secondary">
+          <p className="mt-2 type-body-sm text-text-secondary flex-grow">
             40 professional terms with definitions, categories, and usage examples. The vocabulary that separates
             AI-capable engineers from everyone else.
           </p>
-          <p className="mt-3 type-meta text-text-muted">Free download &mdash; coming soon</p>
+          <Link href="/resources/spell-book" className="mt-4 type-label text-text-primary underline underline-offset-4">
+            Get the Spell Book &rarr;
+          </Link>
         </Card>
-        <Card className="p-5">
+        <Card className="p-5 flex flex-col">
           <h3 className="type-label text-text-primary">Context Pack Starter Kit</h3>
-          <p className="mt-2 type-body-sm text-text-secondary">
+          <p className="mt-2 type-body-sm text-text-secondary flex-grow">
             A blank Context Pack template with instructions, examples, and a checklist. Start structuring your AI
             interactions immediately.
           </p>
-          <p className="mt-3 type-meta text-text-muted">Free download &mdash; coming soon</p>
+          <Link href="/resources/context-pack" className="mt-4 type-label text-text-primary underline underline-offset-4">
+            Get the Starter Kit &rarr;
+          </Link>
         </Card>
-        <Card className="p-5">
+        <Card className="p-5 flex flex-col">
           <h3 className="type-label text-text-primary">Human Edge Scorecard</h3>
-          <p className="mt-2 type-body-sm text-text-secondary">
+          <p className="mt-2 type-body-sm text-text-secondary flex-grow">
             Self-assessment across all 8 Human Edge capabilities. Score yourself, identify gaps, and get a recommended
             starting point.
           </p>
-          <p className="mt-3 type-meta text-text-muted">Free assessment &mdash; coming soon</p>
+          <Link href="/resources/assessment" className="mt-4 type-label text-text-primary underline underline-offset-4">
+            Take the Assessment &rarr;
+          </Link>
         </Card>
       </section>
 
