@@ -29,7 +29,13 @@ describe("admin users ui helpers", () => {
   });
 
   it("supports idempotent role actions and excludes super admin mutation", () => {
-    expect(MUTABLE_ROLES).toEqual(["ADMIN"]);
+    expect(MUTABLE_ROLES).toEqual(["AFFILIATE", "APPRENTICE", "MAESTRO", "ADMIN"]);
+
+    expect(canAddRole(["USER"], "AFFILIATE")).toBe(true);
+    expect(canAddRole(["USER", "AFFILIATE"], "AFFILIATE")).toBe(false);
+    expect(canRemoveRole(["USER", "AFFILIATE"], "AFFILIATE")).toBe(true);
+    expect(canRemoveRole(["USER"], "AFFILIATE")).toBe(false);
+
     expect(canAddRole(["USER"], "ADMIN")).toBe(true);
     expect(canAddRole(["USER", "ADMIN"], "ADMIN")).toBe(false);
     expect(canRemoveRole(["USER", "ADMIN"], "ADMIN")).toBe(true);

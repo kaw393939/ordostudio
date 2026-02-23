@@ -517,8 +517,29 @@ export default function AccountPage() {
     return items.sort((a, b) => a.start_at.localeCompare(b.start_at));
   }, [registrations, registrationSort]);
 
+  const isApprentice = Boolean(me?.roles?.includes("APPRENTICE"));
+  const isAffiliate = Boolean(me?.roles?.includes("AFFILIATE"));
+  const isMaestro = Boolean(me?.roles?.includes("MAESTRO"));
+  const isAdmin = Boolean(me?.roles?.includes("ADMIN") || me?.roles?.includes("SUPER_ADMIN"));
+  const isOperator = isAdmin || isMaestro;
+  const showReferralsTab = isApprentice || isAffiliate || isAdmin;
+  const isAffiliateOnly = isAffiliate && !isApprentice && !isOperator;
+  const isOperatorDashboard = isOperator && !isAffiliateOnly;
+
+  const taskLinkClass =
+    "motion-base inline-flex min-h-11 items-center justify-center rounded-sm border border-border-default bg-action-secondary px-3 py-2 type-label text-text-primary hover:bg-action-secondary-hover";
+
   return (
-    <PageShell title="Account" subtitle="Manage your profile and registrations.">
+    <PageShell
+      title="Dashboard"
+      subtitle={
+        isAffiliateOnly
+          ? "Share your referral link, track attribution, and get paid."
+          : isOperatorDashboard
+            ? "Your operator cockpit."
+            : "Manage your profile and registrations."
+      }
+    >
       {problem ? (
         <div className="mt-4 space-y-3">
           <ProblemDetailsPanel problem={problem} />
@@ -541,21 +562,206 @@ export default function AccountPage() {
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)}>
             <TabsList className="w-full" variant="line">
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="registrations">My Registrations</TabsTrigger>
-              <TabsTrigger value="followups">
-                Follow-Ups
-                {attentionCount > 0 ? (
-                  <span className="ml-1 inline-flex min-w-5 items-center justify-center rounded-sm bg-state-danger px-1.5 py-0.5 text-xs font-medium text-white">
-                    {attentionCount}
-                  </span>
-                ) : null}
-              </TabsTrigger>
-              <TabsTrigger value="feedback">Feedback</TabsTrigger>
-              <TabsTrigger value="referrals">Referrals</TabsTrigger>
+              {isOperatorDashboard ? null : !isAffiliateOnly ? (
+                <TabsTrigger value="registrations">My Registrations</TabsTrigger>
+              ) : null}
+              {isOperatorDashboard ? null : !isAffiliateOnly ? (
+                <TabsTrigger value="followups">
+                  Follow-Ups
+                  {attentionCount > 0 ? (
+                    <span className="ml-1 inline-flex min-w-5 items-center justify-center rounded-sm bg-state-danger px-1.5 py-0.5 text-xs font-medium text-white">
+                      {attentionCount}
+                    </span>
+                  ) : null}
+                </TabsTrigger>
+              ) : null}
+              {isOperatorDashboard ? null : !isAffiliateOnly ? <TabsTrigger value="feedback">Feedback</TabsTrigger> : null}
+              {showReferralsTab && !isOperatorDashboard ? <TabsTrigger value="referrals">Referrals</TabsTrigger> : null}
             </TabsList>
 
             <TabsContent value="overview" className="mt-4 space-y-4">
-              {loading ? (
+              {isOperatorDashboard ? (
+                <Card className="p-4">
+                  <h2 className="type-title">Operator cockpit</h2>
+                  <p className="mt-1 type-body-sm text-text-secondary">
+                    The few actions you’ll run all day: triage, assign, approve money, publish.
+                  </p>
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <Link href="/admin/deals" className={taskLinkClass}>
+                      Triage deals
+                    </Link>
+
+                    {isAdmin ? (
+                      <Link href="/admin/intake" className={taskLinkClass}>
+                        Triage intake
+                      </Link>
+                    ) : (
+                      <Link href="/admin" className={taskLinkClass}>
+                        Open admin console
+                      </Link>
+                    )}
+
+                    {isAdmin ? (
+                      <Link href="/admin/ledger" className={taskLinkClass}>
+                        Approve payouts (ledger)
+                      </Link>
+                    ) : null}
+
+                    {isAdmin ? (
+                      <Link href="/admin/newsletter" className={taskLinkClass}>
+                        Publish newsletter
+                      </Link>
+                    ) : null}
+                  </div>
+
+                  <details className="mt-4 rounded-sm border border-border-default bg-action-secondary/20 p-3">
+                    <summary className="cursor-pointer type-label text-text-primary">Personal (registrations, follow-ups, feedback)</summary>
+                    <p className="mt-1 type-meta text-text-muted">Hidden by default to keep the cockpit focused.</p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <Button intent="secondary" fullWidth onClick={() => setActiveTab("registrations")}>
+                        My registrations
+                      </Button>
+                      <Button intent="secondary" fullWidth onClick={() => setActiveTab("followups")}>
+                        Follow-ups
+                      </Button>
+                      <Button intent="secondary" fullWidth onClick={() => setActiveTab("feedback")}>
+                        Feedback
+                      </Button>
+                      <Link href="/events" className={taskLinkClass}>
+                        Browse events
+                      </Link>
+                    </div>
+                  </details>
+                </Card>
+              ) : null}
+
+              {isAffiliateOnly ? (
+                <Card className="p-4">
+                  <h2 className="type-title">Affiliate dashboard</h2>
+                  <p className="mt-1 type-body-sm text-text-secondary">
+                    Share your referral link, track attribution, and get paid.
+                  </p>
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {showReferralsTab ? (
+                      <Button intent="primary" fullWidth onClick={() => setActiveTab("referrals")}>
+                        Share referral link
+                      </Button>
+                    ) : null}
+
+                    <Button intent="secondary" fullWidth onClick={() => setActiveTab("referrals")}>
+                      View referral status
+                    </Button>
+
+                    <Link href="/services" className={taskLinkClass}>
+                      What we sell
+                    </Link>
+
+                    <Link href="/events" className={taskLinkClass}>
+                      Upcoming events
+                    </Link>
+                  </div>
+                </Card>
+              ) : !isOperatorDashboard ? (
+                <Card className="p-4">
+                  <h2 className="type-title">What do you need to do?</h2>
+                  <p className="mt-1 type-body-sm text-text-secondary">Quick links to the most common account tasks.</p>
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <Button intent="secondary" fullWidth onClick={() => setActiveTab("registrations")}>View my registrations</Button>
+                    <Button intent="secondary" fullWidth onClick={() => setActiveTab("followups")}>View follow-ups</Button>
+
+                    <Link href="/events" className={taskLinkClass}>
+                      Browse events
+                    </Link>
+                    <Button intent="secondary" fullWidth onClick={() => setActiveTab("feedback")}>Leave feedback</Button>
+                  </div>
+                </Card>
+              ) : null}
+
+              {isApprentice ? (
+                <Card className="p-4">
+                  <h2 className="type-title">Quick actions</h2>
+                  <p className="mt-1 type-body-sm text-text-secondary">
+                    Field ops: share your referral link, submit field reports, and keep your apprentice profile current.
+                  </p>
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {showReferralsTab ? (
+                      <Button intent="primary" fullWidth onClick={() => setActiveTab("referrals")}>Share referral link</Button>
+                    ) : null}
+
+                    <Link
+                      href="/studio/report"
+                      className={taskLinkClass}
+                    >
+                      Submit field report
+                    </Link>
+
+                    <Link
+                      href="/account/apprentice-profile"
+                      className={taskLinkClass}
+                    >
+                      Update apprentice profile
+                    </Link>
+
+                    <Link
+                      href="/events"
+                      className={taskLinkClass}
+                    >
+                      Browse events
+                    </Link>
+                  </div>
+                </Card>
+              ) : null}
+
+              {isAffiliate && !isApprentice && !isAffiliateOnly ? (
+                <Card className="p-4">
+                  <h2 className="type-title">Affiliate quick actions</h2>
+                  <p className="mt-1 type-body-sm text-text-secondary">
+                    Share your Studio Ordo referral link and track what gets attributed to you.
+                  </p>
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {showReferralsTab ? (
+                      <Button intent="primary" fullWidth onClick={() => setActiveTab("referrals")}>
+                        Share referral link
+                      </Button>
+                    ) : null}
+
+                    <Button intent="secondary" fullWidth onClick={() => setActiveTab("referrals")}>
+                      View referral status
+                    </Button>
+
+                    <Link href="/services" className={taskLinkClass}>
+                      What we sell
+                    </Link>
+
+                    <Link href="/events" className={taskLinkClass}>
+                      Upcoming events
+                    </Link>
+                  </div>
+                </Card>
+              ) : null}
+
+              {isOperator && !isOperatorDashboard ? (
+                <Card className="p-4">
+                  <h2 className="type-title">Operator</h2>
+                  <p className="mt-1 type-body-sm text-text-secondary">Go to the admin console for ops work.</p>
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <Link href="/admin" className={taskLinkClass}>
+                      Open admin console
+                    </Link>
+                    <Link href="/admin/deals" className={taskLinkClass}>
+                      Triage deals
+                    </Link>
+                  </div>
+                </Card>
+              ) : null}
+
+              {!isAffiliateOnly && !isOperatorDashboard ? (loading ? (
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
                   {Array.from({ length: 4 }).map((_, index) => (
                     <Card key={`overview-skel-${index}`} className="p-4">
@@ -624,7 +830,7 @@ export default function AccountPage() {
                     </Card>
                   </StaggerItem>
                 </StaggerContainer>
-              )}
+              )) : null}
 
               {apprenticeProgress ? (
                 <Card className="p-4">
@@ -693,8 +899,8 @@ export default function AccountPage() {
                 </Card>
               ) : null}
 
-              <Card className="p-4">
-                <h3 className="type-title">Stripe payouts</h3>
+              <details className="surface rounded-sm border border-border-default p-4">
+                <summary className="cursor-pointer type-title text-text-primary">Payments (Stripe payouts)</summary>
                 <p className="mt-1 type-meta text-text-muted">Connect Stripe so we can pay out approved ledger entries.</p>
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -754,10 +960,11 @@ export default function AccountPage() {
                     Refresh status
                   </Button>
                 </div>
-              </Card>
+              </details>
 
-              <Card className="p-4">
-                <h3 className="type-title">Profile</h3>
+              <details className="surface rounded-sm border border-border-default p-4">
+                <summary className="cursor-pointer type-title text-text-primary">Account settings</summary>
+
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label htmlFor="profile-email">Email</Label>
@@ -797,7 +1004,7 @@ export default function AccountPage() {
                     Privacy
                   </Link>
                 </div>
-              </Card>
+              </details>
             </TabsContent>
 
             <TabsContent value="registrations" className="mt-4">

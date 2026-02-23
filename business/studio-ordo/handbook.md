@@ -16,6 +16,9 @@ Principles:
 
 ## Core documents (start here)
 
+Production MVP entrypoint:
+- `START-HERE.md`
+
 - Operating model: `ops/operating-model.md`
 - Roles and RBAC: `ops/roles-rbac.md`
 - System specs (as-is): `system-specs/README.md`

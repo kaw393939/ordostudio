@@ -307,6 +307,51 @@ export const updateNewsletterIssue = (input: {
   }
 };
 
+export const attachFieldReportToNewsletterIssue = (input: {
+  issueId: string;
+  fieldReportId: string;
+  tag?: NewsletterSection;
+  actor: ApiActor;
+  requestId: string;
+}): NewsletterIssueDetail => {
+  const config = resolveConfig({ envVars: process.env });
+  const db = openCliDb(config);
+
+  try {
+    ensureIssue(db, input.issueId);
+    const now = new Date().toISOString();
+
+    const report = db
+      .prepare(
+        "SELECT fr.id as id FROM field_reports fr WHERE fr.id = ?",
+      )
+      .get(input.fieldReportId) as { id: string } | undefined;
+
+    if (!report) {
+      throw new Error("field_report_not_found");
+    }
+
+    const tag: NewsletterSection = input.tag ?? "FROM_FIELD";
+
+    db.prepare(
+      "INSERT OR IGNORE INTO newsletter_issue_field_reports (id, issue_id, field_report_id, tag, created_at) VALUES (?, ?, ?, ?, ?)",
+    ).run(randomUUID(), input.issueId, input.fieldReportId, tag, now);
+
+    appendAuditLog(db, {
+      actorType: input.actor.type,
+      actorId: input.actor.id,
+      action: "api.newsletter.issue.attach_field_report",
+      targetType: "newsletter_issue",
+      requestId: input.requestId,
+      metadata: { issueId: input.issueId, fieldReportId: input.fieldReportId, tag },
+    });
+
+    return getNewsletterIssue(input.issueId);
+  } finally {
+    db.close();
+  }
+};
+
 export const subscribeNewsletter = (input: { email: string; requestId: string }): { ok: true } => {
   const config = resolveConfig({ envVars: process.env });
   const db = openCliDb(config);

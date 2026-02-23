@@ -21,7 +21,15 @@ export function RouteAnnouncer() {
     // Only announce when pathname actually changes (not on initial mount)
     if (previousPathname.current !== pathname) {
       previousPathname.current = pathname;
-      ref.current?.focus();
+      const node = ref.current;
+      if (!node) return;
+
+      try {
+        // Avoid scroll jumps when focusing an off-screen sr-only element.
+        node.focus({ preventScroll: true });
+      } catch {
+        node.focus();
+      }
     }
   }, [pathname]);
 

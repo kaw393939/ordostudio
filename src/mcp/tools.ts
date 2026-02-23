@@ -4,10 +4,12 @@ import { approveDealAdmin, assignDealAdmin, listDealsAdmin, type DealStatus } fr
 import { getFieldReportAdmin, listFieldReportsAdmin, setFieldReportFeatured } from "../lib/api/field-reports";
 import {
   createNewsletterIssue,
+  attachFieldReportToNewsletterIssue,
   exportNewsletterMarkdown,
   generateNewsletterDraft,
   scheduleNewsletterSend,
 } from "../lib/api/newsletter";
+import type { NewsletterSection } from "../lib/api/newsletter";
 import { listAuditEntries } from "../lib/api/audit";
 
 type JsonSchema = Record<string, unknown>;
@@ -55,6 +57,19 @@ const requireConfirm = (expected: string, provided: unknown) => {
 };
 
 const toolError = (message: string) => ({ content: [{ type: "text", text: message }], isError: true });
+
+const toBulletLines = (value: unknown): string[] =>
+  typeof value === "string"
+    ? value
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+    : [];
+
+const takeFirstNonEmptyLine = (value: unknown): string | null => {
+  const lines = toBulletLines(value);
+  return lines.length > 0 ? lines[0] : null;
+};
 
 export const createToolRegistry = () => {
   const tools: Tool[] = [
@@ -266,6 +281,86 @@ export const createToolRegistry = () => {
         return setFieldReportFeatured({
           id: input.id,
           featured: input.featured,
+          actor: ctx.actor,
+          requestId: ctx.requestId,
+        });
+      },
+    },
+    {
+      name: "summarize_field_report",
+      description: "Summarize a field report into newsletter-ready bullets and outreach targets (admin).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+        },
+        required: ["id"],
+        additionalProperties: false,
+      },
+      handler: async (args) => {
+        const input = (args ?? {}) as Record<string, unknown>;
+        if (typeof input.id !== "string" || input.id.trim().length === 0) throw new Error("id_required");
+
+        const report = await getFieldReportAdmin(input.id);
+
+        const outreachCandidates = toBulletLines(report.people);
+        const followups = toBulletLines(report.client_advice);
+        const summary = report.summary ?? takeFirstNonEmptyLine(report.key_insights) ?? "";
+
+        return {
+          field_report_id: report.id,
+          event: { slug: report.event_slug, title: report.event_title },
+          reporter: { user_id: report.user_id, email: report.user_email },
+          newsletter: {
+            summary,
+            models_bullets: toBulletLines(report.models).slice(0, 8),
+            money_bullets: toBulletLines(report.money).slice(0, 8),
+            people_bullets: toBulletLines(report.people).slice(0, 8),
+            from_field_line: summary ? `${summary} (Event: ${report.event_title} · Reporter: ${report.user_email})` : null,
+          },
+          outreach: {
+            candidates: outreachCandidates.slice(0, 10),
+            followups: followups.slice(0, 10),
+          },
+          notes: {
+            llm_hint:
+              "Use `newsletter.summary` and the bullet arrays to draft 1–2 sentences for the issue plus a short outreach plan. Preserve provenance: event + reporter.",
+          },
+        };
+      },
+    },
+    {
+      name: "attach_field_report_to_newsletter",
+      description: "Attach a field report to a newsletter issue provenance with explicit confirmation.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          issue_id: { type: "string" },
+          field_report_id: { type: "string" },
+          tag: { type: "string" },
+          confirm: { type: "string" },
+        },
+        required: ["issue_id", "field_report_id", "confirm"],
+        additionalProperties: false,
+      },
+      handler: (args, ctx) => {
+        const input = (args ?? {}) as Record<string, unknown>;
+        if (typeof input.issue_id !== "string" || input.issue_id.trim().length === 0) throw new Error("issue_id_required");
+        if (typeof input.field_report_id !== "string" || input.field_report_id.trim().length === 0) throw new Error("field_report_id_required");
+
+        requireConfirm(`attach_field_report_to_newsletter:${input.issue_id}:${input.field_report_id}`, input.confirm);
+
+        const allowedTags: readonly NewsletterSection[] = ["MODELS", "MONEY", "PEOPLE", "FROM_FIELD", "NEXT_STEPS"];
+        const rawTag = typeof input.tag === "string" ? input.tag.trim() : "";
+        const tag: NewsletterSection | undefined = rawTag && allowedTags.includes(rawTag as NewsletterSection) ? (rawTag as NewsletterSection) : undefined;
+        if (rawTag && !tag) {
+          throw new Error("invalid_tag");
+        }
+
+        return attachFieldReportToNewsletterIssue({
+          issueId: input.issue_id,
+          fieldReportId: input.field_report_id,
+          tag,
           actor: ctx.actor,
           requestId: ctx.requestId,
         });

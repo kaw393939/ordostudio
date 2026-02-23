@@ -6,7 +6,9 @@ import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { Button, Card } from "@/components/primitives";
 import { ProblemDetailsPanel } from "@/components/problem-details";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RelativeTime } from "@/components/forms";
 import { formatCents } from "@/lib/currency";
 import { requestHal, type ProblemDetails } from "@/lib/hal-client";
 
@@ -32,6 +34,21 @@ type LedgerResponse = {
   };
 };
 
+type BadgeVariant = "default" | "secondary" | "destructive" | "outline" | "ghost" | "link";
+
+const statusVariant = (value: LedgerStatus): BadgeVariant => {
+  if (value === "EARNED") return "outline";
+  if (value === "APPROVED") return "secondary";
+  if (value === "VOID") return "destructive";
+  return "default";
+};
+
+const typeLabel = (entryType: LedgerEntry["entry_type"]): string => {
+  if (entryType === "PROVIDER_PAYOUT") return "Provider payout";
+  if (entryType === "REFERRER_COMMISSION") return "Referrer commission";
+  return "Platform revenue";
+};
+
 export default function AdminLedgerPage() {
   const [pending, setPending] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -40,6 +57,7 @@ export default function AdminLedgerPage() {
 
   const [status, setStatus] = useState<LedgerStatus | "all">("EARNED");
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [focusedId, setFocusedId] = useState<string | null>(null);
   const [confirmApprove, setConfirmApprove] = useState(false);
   const [confirmPayout, setConfirmPayout] = useState(false);
 
@@ -57,7 +75,9 @@ export default function AdminLedgerPage() {
     setProblem(null);
     setEntries(response.data.items ?? []);
     setSelected({});
+    setFocusedId(null);
     setConfirmApprove(false);
+    setConfirmPayout(false);
     setPending(false);
   };
 
@@ -65,6 +85,16 @@ export default function AdminLedgerPage() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
+
+  useEffect(() => {
+    if (!focusedId) {
+      return;
+    }
+
+    if (!entries.some((entry) => entry.id === focusedId)) {
+      setFocusedId(null);
+    }
+  }, [entries, focusedId]);
 
   const exportHref = useMemo(() => {
     return status === "all" ? "/api/v1/admin/ledger/export" : `/api/v1/admin/ledger/export?status=${status}`;
@@ -78,6 +108,29 @@ export default function AdminLedgerPage() {
     () => entries.filter((row) => row.status === "APPROVED" && selected[row.id]).map((row) => row.id),
     [entries, selected],
   );
+
+  const focusedEntry = useMemo(() => {
+    if (!focusedId) return null;
+    return entries.find((entry) => entry.id === focusedId) ?? null;
+  }, [entries, focusedId]);
+
+  const selectAll = (which: LedgerStatus) => {
+    setSelected(() => {
+      const next: Record<string, boolean> = {};
+      for (const entry of entries) {
+        if (entry.status === which) {
+          next[entry.id] = true;
+        }
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelected({});
+    setConfirmApprove(false);
+    setConfirmPayout(false);
+  };
 
   const onApprove = async () => {
     setSaving(true);
@@ -128,32 +181,55 @@ export default function AdminLedgerPage() {
 
   return (
     <PageShell title="Ledger" subtitle="Approve provider payouts and referrer commissions." breadcrumbs={[{ label: "Admin", href: "/admin" }, { label: "Ledger" }]}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button intent="secondary" onClick={() => void load()} disabled={pending || saving}>
-            Refresh
-          </Button>
-          <a href={exportHref} className="type-label underline" target="_blank" rel="noreferrer">
-            Export CSV
-          </a>
+      <Card className="p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="type-title">Work queue</h2>
+            <p className="mt-1 type-meta text-text-muted">Approve earned entries, then pay approved entries via Stripe.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button intent="secondary" onClick={() => void load()} disabled={pending || saving}>
+              Refresh
+            </Button>
+            <a href={exportHref} className="type-label underline" target="_blank" rel="noreferrer">
+              Export CSV
+            </a>
+          </div>
         </div>
 
-        <div className="w-64">
-          <Select value={status} onValueChange={(v) => setStatus(v as LedgerStatus | "all")}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="EARNED">EARNED</SelectItem>
-              <SelectItem value="APPROVED">APPROVED</SelectItem>
-              <SelectItem value="PAID">PAID</SelectItem>
-              <SelectItem value="VOID">VOID</SelectItem>
-              <SelectItem value="all">All</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button intent={status === "EARNED" ? "primary" : "secondary"} onClick={() => setStatus("EARNED")} disabled={pending || saving}>
+            Needs approval
+          </Button>
+          <Button intent={status === "APPROVED" ? "primary" : "secondary"} onClick={() => setStatus("APPROVED")} disabled={pending || saving}>
+            Ready to pay
+          </Button>
+          <Button intent={status === "PAID" ? "primary" : "secondary"} onClick={() => setStatus("PAID")} disabled={pending || saving}>
+            Paid
+          </Button>
+          <Button intent={status === "VOID" ? "primary" : "secondary"} onClick={() => setStatus("VOID")} disabled={pending || saving}>
+            Void
+          </Button>
+          <Button intent={status === "all" ? "primary" : "secondary"} onClick={() => setStatus("all")} disabled={pending || saving}>
+            All
+          </Button>
+
+          <div className="ml-auto w-64">
+            <Select value={status} onValueChange={(v) => setStatus(v as LedgerStatus | "all")}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="EARNED">EARNED</SelectItem>
+                <SelectItem value="APPROVED">APPROVED</SelectItem>
+                <SelectItem value="PAID">PAID</SelectItem>
+                <SelectItem value="VOID">VOID</SelectItem>
+                <SelectItem value="all">All</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      </div>
+      </Card>
 
       {problem ? (
         <div className="mt-4">
@@ -163,108 +239,184 @@ export default function AdminLedgerPage() {
 
       {pending ? <p className="mt-4 type-meta text-text-muted">Loading…</p> : null}
 
-      <Card className="mt-4 p-4">
-        <h2 className="type-title">Entries ({entries.length})</h2>
-        {entries.length === 0 ? (
-          <p className="mt-2 type-meta text-text-muted">No entries found.</p>
-        ) : (
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="text-left type-meta text-text-muted">
-                  <th className="pb-2">Select</th>
-                  <th className="pb-2">Deal</th>
-                  <th className="pb-2">Type</th>
-                  <th className="pb-2">Beneficiary</th>
-                  <th className="pb-2">Amount</th>
-                  <th className="pb-2">Status</th>
-                  <th className="pb-2">Earned</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map((row) => {
-                  const canSelect = row.status === "EARNED" || row.status === "APPROVED";
-                  return (
-                    <tr key={row.id} className="border-t border-border-default type-meta">
-                      <td className="py-2">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4"
-                          disabled={!canSelect || saving}
-                          checked={!!selected[row.id]}
-                          onChange={(e) => setSelected((prev) => ({ ...prev, [row.id]: e.target.checked }))}
-                        />
-                      </td>
-                      <td className="py-2">
-                        <Link href={`/admin/deals/${row.deal_id}`} className="underline">
-                          {row.deal_id}
-                        </Link>
-                      </td>
-                      <td className="py-2">{row.entry_type}</td>
-                      <td className="py-2 text-text-muted">{row.beneficiary_user_id ?? "-"}</td>
-                      <td className="py-2">
-                        {formatCents(row.amount_cents, row.currency)}
-                      </td>
-                      <td className="py-2">{row.status}</td>
-                      <td className="py-2 text-text-muted">{row.earned_at}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      <div className="mt-4 grid gap-4 lg:grid-cols-[22rem,1fr]">
+        <Card className="p-4">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h2 className="type-title">Queue</h2>
+              <p className="mt-1 type-meta text-text-muted">Step 1: select entries to approve/pay.</p>
+            </div>
+            <Badge variant="outline">{entries.length}</Badge>
           </div>
-        )}
-      </Card>
 
-      <Card className="mt-4 p-4">
-        <h2 className="type-title">Approve</h2>
-        <p className="mt-1 type-meta text-text-muted">Approval updates selected EARNED entries to APPROVED.</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button
+              intent="secondary"
+              size="sm"
+              onClick={() => selectAll("EARNED")}
+              disabled={saving || entries.every((entry) => entry.status !== "EARNED")}
+            >
+              Select all earned
+            </Button>
+            <Button
+              intent="secondary"
+              size="sm"
+              onClick={() => selectAll("APPROVED")}
+              disabled={saving || entries.every((entry) => entry.status !== "APPROVED")}
+            >
+              Select all approved
+            </Button>
+            <Button intent="secondary" size="sm" onClick={clearSelection} disabled={saving}>
+              Clear
+            </Button>
+          </div>
 
-        <div className="mt-3 flex items-center gap-2">
-          <input
-            id="confirm-approve"
-            type="checkbox"
-            className="h-4 w-4"
-            checked={confirmApprove}
-            onChange={(e) => setConfirmApprove(e.target.checked)}
-            disabled={saving}
-          />
-          <label htmlFor="confirm-approve" className="type-meta text-text-muted">
-            Confirm approval
-          </label>
-        </div>
+          {entries.length === 0 ? (
+            <p className="mt-3 type-meta text-text-muted">No entries found.</p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {entries.map((row) => {
+                const canSelect = row.status === "EARNED" || row.status === "APPROVED";
+                const isFocused = focusedId === row.id;
 
-        <div className="mt-3 flex items-center gap-2">
-          <Button intent="primary" onClick={() => void onApprove()} disabled={saving || selectedEarnedIds.length === 0}>
-            {saving ? "Approving…" : `Approve (${selectedEarnedIds.length})`}
-          </Button>
-        </div>
-      </Card>
+                return (
+                  <li
+                    key={row.id}
+                    className={
+                      isFocused
+                        ? "rounded-sm border border-border-default bg-action-secondary/30 p-3"
+                        : "rounded-sm border border-border-default p-3"
+                    }
+                  >
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        className="mt-1 h-4 w-4"
+                        disabled={!canSelect || saving}
+                        checked={!!selected[row.id]}
+                        onChange={(e) => setSelected((prev) => ({ ...prev, [row.id]: e.target.checked }))}
+                        aria-label={`Select ledger entry ${row.id}`}
+                      />
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 text-left"
+                        onClick={() => setFocusedId(row.id)}
+                        aria-current={isFocused ? "true" : undefined}
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <p className="type-label text-text-primary">{typeLabel(row.entry_type)}</p>
+                          <Badge variant={statusVariant(row.status)}>{row.status}</Badge>
+                        </div>
+                        <p className="mt-1 type-meta text-text-muted">
+                          {formatCents(row.amount_cents, row.currency)} · Deal {row.deal_id}
+                        </p>
+                        <p className="mt-1 type-meta text-text-muted">
+                          Earned: <RelativeTime iso={row.earned_at} />
+                          {row.beneficiary_user_id ? ` · ${row.beneficiary_user_id}` : ""}
+                        </p>
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Card>
 
-      <Card className="mt-4 p-4">
-        <h2 className="type-title">Payout</h2>
-        <p className="mt-1 type-meta text-text-muted">Payout executes Stripe transfers for selected APPROVED entries and marks them PAID.</p>
+        <Card className="p-4">
+          <h2 className="type-title">Entry</h2>
 
-        <div className="mt-3 flex items-center gap-2">
-          <input
-            id="confirm-payout"
-            type="checkbox"
-            className="h-4 w-4"
-            checked={confirmPayout}
-            onChange={(e) => setConfirmPayout(e.target.checked)}
-            disabled={saving}
-          />
-          <label htmlFor="confirm-payout" className="type-meta text-text-muted">
-            Confirm payout
-          </label>
-        </div>
+          {focusedEntry ? (
+            <div className="mt-3 space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="type-label text-text-primary">{focusedEntry.id}</p>
+                  <p className="mt-1 type-meta text-text-muted">{typeLabel(focusedEntry.entry_type)}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={statusVariant(focusedEntry.status)}>{focusedEntry.status}</Badge>
+                  <Link href={`/admin/deals/${focusedEntry.deal_id}`} className="type-label underline">
+                    Open deal
+                  </Link>
+                </div>
+              </div>
 
-        <div className="mt-3 flex items-center gap-2">
-          <Button intent="primary" onClick={() => void onPayout()} disabled={saving || selectedApprovedIds.length === 0}>
-            {saving ? "Paying…" : `Pay (${selectedApprovedIds.length})`}
-          </Button>
-        </div>
-      </Card>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="surface rounded-sm border border-border-default p-3">
+                  <p className="type-meta text-text-muted">Amount</p>
+                  <p className="type-label text-text-primary">{formatCents(focusedEntry.amount_cents, focusedEntry.currency)}</p>
+                  <p className="mt-2 type-meta text-text-muted">Beneficiary</p>
+                  <p className="type-label text-text-primary">{focusedEntry.beneficiary_user_id ?? "—"}</p>
+                </div>
+                <div className="surface rounded-sm border border-border-default p-3">
+                  <p className="type-meta text-text-muted">Earned</p>
+                  <p className="type-label text-text-primary"><RelativeTime iso={focusedEntry.earned_at} /></p>
+                  <p className="mt-2 type-meta text-text-muted">Approved</p>
+                  <p className="type-label text-text-primary">{focusedEntry.approved_at ? <RelativeTime iso={focusedEntry.approved_at} /> : "—"}</p>
+                </div>
+              </div>
+
+              <details className="surface rounded-sm border border-border-default p-3" open>
+                <summary className="cursor-pointer type-label text-text-primary">Batch actions</summary>
+
+                <div className="mt-3 grid gap-4">
+                  <div className="rounded-sm border border-border-default bg-surface p-3">
+                    <p className="type-label text-text-primary">Approve</p>
+                    <p className="mt-1 type-meta text-text-muted">Updates selected EARNED entries to APPROVED.</p>
+
+                    <div className="mt-3 flex items-center gap-2">
+                      <input
+                        id="confirm-approve"
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={confirmApprove}
+                        onChange={(e) => setConfirmApprove(e.target.checked)}
+                        disabled={saving}
+                      />
+                      <label htmlFor="confirm-approve" className="type-meta text-text-muted">
+                        Confirm approval
+                      </label>
+                    </div>
+
+                    <div className="mt-3 flex items-center gap-2">
+                      <Button intent="primary" onClick={() => void onApprove()} disabled={saving || selectedEarnedIds.length === 0 || !confirmApprove}>
+                        {saving ? "Approving…" : `Approve (${selectedEarnedIds.length})`}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-sm border border-border-default bg-surface p-3">
+                    <p className="type-label text-text-primary">Payout</p>
+                    <p className="mt-1 type-meta text-text-muted">Executes Stripe transfers for selected APPROVED entries and marks them PAID.</p>
+
+                    <div className="mt-3 flex items-center gap-2">
+                      <input
+                        id="confirm-payout"
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={confirmPayout}
+                        onChange={(e) => setConfirmPayout(e.target.checked)}
+                        disabled={saving}
+                      />
+                      <label htmlFor="confirm-payout" className="type-meta text-text-muted">
+                        Confirm payout
+                      </label>
+                    </div>
+
+                    <div className="mt-3 flex items-center gap-2">
+                      <Button intent="primary" onClick={() => void onPayout()} disabled={saving || selectedApprovedIds.length === 0 || !confirmPayout}>
+                        {saving ? "Paying…" : `Pay (${selectedApprovedIds.length})`}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </div>
+          ) : (
+            <p className="mt-3 type-body-sm text-text-secondary">Step 2: focus an entry from the queue to review and take action.</p>
+          )}
+        </Card>
+      </div>
     </PageShell>
   );
 }

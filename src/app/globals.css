@@ -358,6 +358,22 @@ body {
   width: min(100% - calc(var(--space-4) * 2), var(--container-max));
 }
 
+/* Admin shell: the right column is already constrained; avoid re-centering PageShell again. */
+.admin-content > main.container-grid {
+  width: 100%;
+  margin-inline: 0;
+}
+
+.admin-shell-grid {
+  grid-template-columns: 1fr !important;
+}
+
+@media (min-width: 768px) {
+  .admin-shell-grid {
+    grid-template-columns: 16rem minmax(0, 1fr) !important;
+  }
+}
+
 @media (min-width: 768px) {
   .container-grid {
     width: min(100% - calc(var(--space-6) * 2), var(--container-max));

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { PageShell } from "@/components/layout/page-shell";
 import { Card } from "@/components/primitives";
@@ -53,11 +54,24 @@ export default function StudioPage() {
       title="Studio"
       subtitle="Not a certificate. A portfolio of shipped work."
     >
+      <section className="surface overflow-hidden rounded-sm border border-border-default">
+        <Image
+          src="/studio/studio-banner.png"
+          alt="Studio Ordo workshop desk — calm, disciplined craft"
+          width={1536}
+          height={1024}
+          priority
+          className="h-auto w-full"
+        />
+      </section>
+
       {/* Section 01 \u2014 The Model */}
-      <section className="surface p-6">
+      <section className="mt-6 surface p-6">
         <p className="type-meta text-text-muted">The Model</p>
-        <h2 className="mt-2 type-title text-text-primary">The bottega model. Updated for the AI era.</h2>
-        <div className="mt-4 space-y-3 type-body-sm text-text-secondary">
+        <div className="mt-4 grid gap-6 md:grid-cols-3">
+          <div className="md:col-span-2">
+            <h2 className="type-title text-text-primary">The bottega model. Updated for the AI era.</h2>
+            <div className="mt-4 space-y-3 type-body-sm text-text-secondary">
           <p>
             A bottega was a Renaissance workshop &mdash; the place where apprentices learned by producing real work under
             the guidance of a master craftsman. Leonardo da Vinci trained in Verrocchio&apos;s bottega not by attending
@@ -75,6 +89,23 @@ export default function StudioPage() {
             feedback, and the &ldquo;invisible curriculum&rdquo; &mdash; the professional vocabulary, judgment patterns,
             and failure modes that only come from experience.
           </p>
+            </div>
+          </div>
+
+          <div className="md:col-span-1">
+            <div className="overflow-hidden rounded-sm border border-border-default bg-surface">
+              <Image
+                src="/studio/studio-artifact.png"
+                alt="Studio Ordo artifacts — specs, checklists, and disciplined notes"
+                width={1024}
+                height={1024}
+                className="h-auto w-full"
+              />
+            </div>
+            <p className="mt-2 type-meta text-text-muted">
+              Proof over vibes: specs, checklists, and shipped artifacts.
+            </p>
+          </div>
         </div>
       </section>
 

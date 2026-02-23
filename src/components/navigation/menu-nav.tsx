@@ -3,20 +3,24 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { isMenuItemActive, resolveMenu, type MenuAudience, type MenuName } from "@/lib/navigation/menu-registry";
+import { isMenuItemActive, resolveMenuForContext, type MenuAudience, type MenuContext, type MenuName } from "@/lib/navigation/menu-registry";
 import { requestHal } from "@/lib/hal-client";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useFeatureFlag } from "@/components/feature-flags-provider";
 
 type MenuNavProps = {
   menu: MenuName;
-  audience: MenuAudience;
+  audience?: MenuAudience;
+  context?: MenuContext;
+  variant?: "header" | "footer";
   className?: string;
+  scroll?: boolean;
 };
 
-export function MenuNav({ menu, audience, className }: MenuNavProps) {
+export function MenuNav({ menu, audience, context, variant = "header", className, scroll = true }: MenuNavProps) {
   const pathname = usePathname();
-  const items = resolveMenu(menu, audience);
+  const resolvedContext: MenuContext = context ?? { audience: audience ?? "guest", roles: [] };
+  const items = resolveMenuForContext(menu, resolvedContext);
   const [accountBadgeCount, setAccountBadgeCount] = useState<number>(0);
   const showThemeToggle = useFeatureFlag("DARK_MODE_TOGGLE");
 
@@ -24,7 +28,7 @@ export function MenuNav({ menu, audience, className }: MenuNavProps) {
     let cancelled = false;
 
     const load = async () => {
-      if (audience === "guest") {
+      if (resolvedContext.audience === "guest") {
         setAccountBadgeCount(0);
         return;
       }
@@ -46,27 +50,47 @@ export function MenuNav({ menu, audience, className }: MenuNavProps) {
     return () => {
       cancelled = true;
     };
-  }, [audience]);
+  }, [resolvedContext.audience]);
 
   return (
     <nav aria-label={`${menu} navigation`} className={className}>
-      <div className="flex flex-1 flex-wrap items-center gap-4">
+      <div
+        className={
+          variant === "footer"
+            ? "flex flex-1 flex-wrap items-center gap-4"
+            : "flex min-w-0 flex-1 flex-nowrap items-center gap-4 overflow-x-auto whitespace-nowrap"
+        }
+      >
         {items.map((item) => {
         const active = isMenuItemActive(item, pathname);
+        const isAccount = item.id === "account";
+        const badgeCount = isAccount ? accountBadgeCount : 0;
 
         return (
           <Link
             key={item.id}
             href={item.href}
+            scroll={scroll}
             aria-current={active ? "page" : undefined}
-            className={active ? "motion-base text-text-primary underline" : "motion-base hover:text-text-primary"}
+            className={
+              active
+                ? "motion-base text-text-primary underline decoration-current"
+                : "motion-base underline decoration-transparent hover:text-text-primary hover:decoration-current"
+            }
             prefetch
           >
             <span className="inline-flex items-center gap-1">
               <span>{item.label}</span>
-              {item.id === "account" && accountBadgeCount > 0 ? (
-                <span className="inline-flex min-w-5 items-center justify-center rounded-sm bg-state-danger px-1.5 py-0.5 text-xs font-medium text-white">
-                  {accountBadgeCount}
+              {isAccount ? (
+                <span
+                  aria-hidden={badgeCount === 0}
+                  className={
+                    badgeCount === 0
+                      ? "invisible inline-flex min-w-5 items-center justify-center rounded-sm px-1.5 py-0.5 text-xs font-medium"
+                      : "inline-flex min-w-5 items-center justify-center rounded-sm bg-state-danger px-1.5 py-0.5 text-xs font-medium text-white"
+                  }
+                >
+                  {badgeCount}
                 </span>
               ) : null}
             </span>
@@ -74,7 +98,7 @@ export function MenuNav({ menu, audience, className }: MenuNavProps) {
         );
         })}
       </div>
-      {showThemeToggle ? <ThemeToggle /> : null}
+      {variant === "header" ? <div className="shrink-0 size-9">{showThemeToggle ? <ThemeToggle /> : null}</div> : null}
     </nav>
   );
 }

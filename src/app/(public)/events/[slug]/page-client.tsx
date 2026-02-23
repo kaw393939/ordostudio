@@ -51,6 +51,7 @@ type MeResponse = {
 
 type NavContextResponse = {
   audience?: "guest" | "user" | "admin";
+  roles?: string[];
 };
 
 type RegistrationsList = {

@@ -7,8 +7,10 @@
  *
  * Run:  npx playwright test e2e/inflate-realistic-data.spec.ts --project chromium-desktop-light
  */
-import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
+import { test, expect, type APIRequestContext } from "@playwright/test";
 import { faker } from "@faker-js/faker";
+import { execFileSync } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 
 /* ──────────────────── Seed & Helpers ──────────────────── */
@@ -87,8 +89,6 @@ function dbCreateSession(email: string): string {
   const cached = cookieCache.get(email);
   if (cached) return cached;
 
-  const { execFileSync } = require("node:child_process") as typeof import("node:child_process");
-  const { createHash, randomUUID } = require("node:crypto") as typeof import("node:crypto");
   const cwd = resolve(__dirname, "..");
   const opts = { cwd, encoding: "utf8" as const, timeout: 5000, stdio: "pipe" as const };
 
@@ -302,7 +302,7 @@ test.describe.serial("Phase 3 — Event Images", () => {
 /* ──────────────────── Phase 4: Event Registrations ──────────────────── */
 
 test.describe.serial("Phase 4 — Event Registrations", () => {
-  test("register users for events via UI", async ({ page, request }) => {
+  test("register users for events via UI", async ({ page }) => {
     // Login as user[2] and register for first published event
     const user = state.users[2];
     const cookie = dbCreateSession(user.email);
@@ -749,7 +749,7 @@ test.describe.serial("Phase 8 — Field Reports", () => {
     },
   ];
 
-  test("submit field reports via the studio report page", async ({ page, request }) => {
+  test("submit field reports via the studio report page", async ({ page }) => {
     for (const report of fieldReports) {
       const user = state.users[report.userIndex];
       // Create session directly (bypasses rate limiter)
@@ -891,7 +891,7 @@ test.describe.serial("Phase 9 — Measurement / Analytics", () => {
 /* ──────────────────── Phase 10: Admin Verification Tour ──────────────────── */
 
 test.describe.serial("Phase 10 — Admin Verification Tour", () => {
-  test("verify admin pages show populated data", async ({ page, request }) => {
+  test("verify admin pages show populated data", async ({ page }) => {
     // Get admin cookie (re-create session if needed)
     if (!state.adminCookie) {
       state.adminCookie = dbCreateSession(state.adminEmail);
@@ -969,7 +969,7 @@ test.describe.serial("Phase 10 — Admin Verification Tour", () => {
 
 /* ──────────────────── Phase 11: Gap Detection Summary ──────────────────── */
 
-test("final gap detection — site health check", async ({ page, request }) => {
+test("final gap detection — site health check", async ({ request }) => {
   const gaps: string[] = [];
 
   // Check all public pages load without errors

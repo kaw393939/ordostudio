@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/patterns";
 import { Card } from "@/components/primitives";
@@ -14,11 +13,6 @@ export default function AdminCommercialPage() {
         <EmptyState
           title="Commercial tracking isn’t set up yet"
           description="This area will list proposals, invoices, and payments once enabled."
-          action={
-            <Link className="type-label underline" href="/admin/settings" prefetch>
-              Go to settings
-            </Link>
-          }
         />
       </Card>
     </PageShell>

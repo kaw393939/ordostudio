@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/primitives";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ProblemDetailsPanel } from "@/components/problem-details";
 import { requestHal, type ProblemDetails } from "@/lib/hal-client";
 import { formatEventPrimaryRange } from "@/lib/event-date-ui";
@@ -76,9 +77,24 @@ export function RecommendedEvents() {
 
   if (pending) {
     return (
-      <Card className="p-4">
-        <p className="type-meta text-text-muted">Loading recommended events…</p>
-      </Card>
+      <div className="grid gap-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <Card key={index} className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="mt-2 h-3 w-1/2" />
+                <Skeleton className="mt-2 h-3 w-2/3" />
+              </div>
+              <Skeleton className="h-6 w-24" />
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <Skeleton className="h-4 w-14" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+          </Card>
+        ))}
+      </div>
     );
   }
 

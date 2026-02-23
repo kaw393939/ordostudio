@@ -50,7 +50,7 @@ export default function PrivacyPage() {
       <section className="mt-6 space-y-3">
         <h2 className="type-title text-text-primary">Referral tracking</h2>
         <p className="type-body text-text-secondary">
-          If you arrive via a referral link, we set a small referral cookie (&quot;so_ref&quot;) for up to 30 days so we can
+            If you arrive via a referral link, we set a small referral cookie (&quot;so_ref&quot;) for up to 90 days so we can
           attribute a subsequent consult request to the referring member. This cookie is used for referral attribution
           and reporting.
         </p>

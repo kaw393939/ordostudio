@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { FileDown, Pencil, Shield, Trash2, UserPlus } from "lucide-react";
 import { Button, Card } from "@/components/primitives";
 import { DateRangePicker, type DateRangeValue } from "@/components/forms";
@@ -108,6 +108,7 @@ export default function AdminAuditPage() {
   const [pending, setPending] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [problem, setProblem] = useState<ProblemDetails | null>(null);
+  const [copiedRequestId, setCopiedRequestId] = useState<string | null>(null);
 
   const severityClasses: Record<ReturnType<typeof auditSeverityForAction>, string> = {
     critical: "border-state-danger text-state-danger",
@@ -155,6 +156,27 @@ export default function AdminAuditPage() {
     setProblem(null);
     setItems(result.data.items ?? []);
     setPending(false);
+  };
+
+  const filterSummary = useMemo(() => {
+    const parts: string[] = [];
+    if (action.trim().length > 0) parts.push(`Action: ${action.trim()}`);
+    if (actorId.trim().length > 0) parts.push(`Actor: ${actorId.trim()}`);
+    if (dateRange.from.trim().length > 0 || dateRange.to.trim().length > 0) {
+      parts.push(`Range: ${dateRange.from || "—"} → ${dateRange.to || "—"}`);
+    }
+    return parts.length > 0 ? parts.join(" · ") : "No filters";
+  }, [action, actorId, dateRange.from, dateRange.to]);
+
+  const copyRequestId = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedRequestId(value);
+      window.setTimeout(() => setCopiedRequestId(null), 1200);
+    } catch {
+      // Fallback: select via prompt.
+      window.prompt("Copy request id", value);
+    }
   };
 
   const onExportCsv = async () => {
@@ -246,6 +268,14 @@ export default function AdminAuditPage() {
         </div>
       </Card>
 
+      <div className="sticky top-32 z-10 mt-4 rounded-sm border border-border-default bg-surface px-3 py-2">
+        <p className="type-meta text-text-muted">
+          Active: <span className="text-text-secondary">{filterSummary}</span>
+          <span className="ml-2">·</span>
+          <span className="ml-2">Showing: {items.length}</span>
+        </p>
+      </div>
+
       {problem ? (
         <div className="mt-4">
           <ProblemDetailsPanel problem={problem} />
@@ -276,6 +306,7 @@ export default function AdminAuditPage() {
                   <th className="pb-2">Action</th>
                   <th className="pb-2">Severity</th>
                   <th className="pb-2">Actor</th>
+                  <th className="pb-2">Request</th>
                   <th className="pb-2">Metadata</th>
                 </tr>
               </thead>
@@ -304,6 +335,19 @@ export default function AdminAuditPage() {
                       </td>
                       <td className="py-2 pr-3">
                         <span className="type-meta text-text-secondary">{item.actor_id ?? "-"}</span>
+                      </td>
+                      <td className="py-2 pr-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="type-meta text-text-secondary">{item.request_id}</span>
+                          <Button
+                            intent="secondary"
+                            size="sm"
+                            onClick={() => void copyRequestId(item.request_id)}
+                            disabled={pending}
+                          >
+                            {copiedRequestId === item.request_id ? "Copied" : "Copy"}
+                          </Button>
+                        </div>
                       </td>
                       <td className="py-2">
                         <p className="type-meta text-text-secondary">{summarizeAuditMetadata(item.metadata)}</p>

@@ -2,6 +2,12 @@
 
 This folder contains the **business-facing brand system** for Studio Ordo.
 
+If you are trying to operate or validate the **production MVP**, start here:
+- `START-HERE.md`
+
+If you are trying to understand what the software **actually does today**, start here:
+- `system-specs/README.md`
+
 - If you’re building UI, the source of truth for implementation-level tokens/components is:
   - `docs/design-system.md`
   - `docs/icon-map.md`

@@ -1,11 +1,11 @@
 import { cookies } from "next/headers";
 import { getSessionUserFromRequest } from "@/lib/api/auth";
-import type { MenuAudience } from "@/lib/navigation/menu-registry";
+import type { MenuAudience, MenuContext } from "@/lib/navigation/menu-registry";
 
 const hasAdminRole = (roles: readonly string[]): boolean =>
-  roles.includes("ADMIN") || roles.includes("SUPER_ADMIN");
+  roles.includes("ADMIN") || roles.includes("SUPER_ADMIN") || roles.includes("MAESTRO");
 
-export const getMenuAudience = async (): Promise<MenuAudience> => {
+export const getMenuContext = async (): Promise<MenuContext> => {
   const cookieStore = await cookies();
   const cookieHeader = cookieStore
     .getAll()
@@ -13,10 +13,10 @@ export const getMenuAudience = async (): Promise<MenuAudience> => {
     .join("; ");
 
   if (!cookieHeader) {
-    return "guest";
+    return { audience: "guest", roles: [] };
   }
 
-  const request = new Request("http://localhost/internal/menu-audience", {
+  const request = new Request("http://localhost/internal/menu-context", {
     headers: {
       cookie: cookieHeader,
     },
@@ -24,12 +24,18 @@ export const getMenuAudience = async (): Promise<MenuAudience> => {
 
   const user = getSessionUserFromRequest(request);
   if (!user) {
-    return "guest";
+    return { audience: "guest", roles: [] };
   }
 
-  if (hasAdminRole(user.roles)) {
-    return "admin";
+  const roles = [...(user.roles ?? [])];
+  if (hasAdminRole(roles)) {
+    return { audience: "admin", roles };
   }
 
-  return "user";
+  return { audience: "user", roles };
+};
+
+export const getMenuAudience = async (): Promise<MenuAudience> => {
+  const context = await getMenuContext();
+  return context.audience;
 };

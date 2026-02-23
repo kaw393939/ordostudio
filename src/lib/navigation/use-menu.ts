@@ -3,18 +3,19 @@
 import { useEffect, useState } from "react";
 import { requestHal } from "@/lib/hal-client";
 import {
-	resolveMenu,
-	type MenuAudience,
+	resolveMenuForContext,
+	type MenuContext,
 	type MenuItem,
 	type MenuName,
 } from "@/lib/navigation/menu-registry";
 
 type NavContextResponse = {
-	audience?: MenuAudience;
+	audience?: MenuContext["audience"];
+	roles?: string[];
 };
 
 export const useMenu = (name: MenuName): readonly MenuItem[] => {
-	const [audience, setAudience] = useState<MenuAudience | null>(null);
+	const [context, setContext] = useState<MenuContext | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -26,11 +27,14 @@ export const useMenu = (name: MenuName): readonly MenuItem[] => {
 			}
 
 			if (!context.ok) {
-				setAudience("guest");
+				setContext({ audience: "guest", roles: [] });
 				return;
 			}
 
-			setAudience(context.data.audience ?? "guest");
+			setContext({
+				audience: context.data.audience ?? "guest",
+				roles: context.data.roles ?? [],
+			});
 		};
 
 		void load();
@@ -40,9 +44,9 @@ export const useMenu = (name: MenuName): readonly MenuItem[] => {
 		};
 	}, []);
 
-	if (audience === null) {
-		return resolveMenu(name, "guest").filter((item) => !item.audience);
+	if (context === null) {
+		return resolveMenuForContext(name, { audience: "guest", roles: [] }).filter((item) => !item.audience);
 	}
 
-	return resolveMenu(name, audience);
+	return resolveMenuForContext(name, context);
 };

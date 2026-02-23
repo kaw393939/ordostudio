@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { UserPlus } from "lucide-react";
 import { ProblemDetailsPanel } from "@/components/problem-details";
 import { EmptyState } from "@/components/patterns";
@@ -74,8 +74,23 @@ export default function AdminUsersPage() {
 
     setProblem(null);
     setUsers(listResult.data.items ?? []);
+    setSelectedUser((current) => {
+      if (!current) {
+        return null;
+      }
+      const stillPresent = (listResult.data.items ?? []).some((row) => row.id === current.id);
+      return stillPresent ? current : null;
+    });
     setPending(false);
   };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void loadUsers();
+    }, 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usersHref]);
 
   const loadUserDetail = async (userId: string) => {
     setPending(true);
@@ -213,20 +228,21 @@ export default function AdminUsersPage() {
               <SelectContent>
                 <SelectItem value="all">All roles</SelectItem>
                 <SelectItem value="USER">USER</SelectItem>
+                <SelectItem value="AFFILIATE">AFFILIATE</SelectItem>
+                <SelectItem value="APPRENTICE">APPRENTICE</SelectItem>
+                <SelectItem value="MAESTRO">MAESTRO</SelectItem>
                 <SelectItem value="ADMIN">ADMIN</SelectItem>
                 <SelectItem value="SUPER_ADMIN">SUPER_ADMIN</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => void loadUsers()}
-          disabled={pending}
-          className="mt-3"
-        >
-          {pending ? "Loading..." : "Load users"}
-        </Button>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => void loadUsers()} disabled={pending}>
+            {pending ? "Loading..." : "Refresh"}
+          </Button>
+          <p className="type-meta text-text-muted">Auto-loads on filter changes.</p>
+        </div>
       </section>
 
       {problem ? (

@@ -1,5 +1,5 @@
 import { AdminShell } from "@/components/admin/admin-shell";
-import { getMenuAudience } from "@/lib/navigation/menu-audience";
+import { getMenuContext } from "@/lib/navigation/menu-audience";
 
 const environment = process.env.NODE_ENV === "production" ? "Prod" : "Local";
 
@@ -8,10 +8,10 @@ export default async function AdminGroupLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const audience = await getMenuAudience();
+  const context = await getMenuContext();
 
   return (
-    <AdminShell audience={audience} environmentLabel={environment}>
+    <AdminShell audience={context.audience} roles={context.roles} environmentLabel={environment}>
       {children}
     </AdminShell>
   );

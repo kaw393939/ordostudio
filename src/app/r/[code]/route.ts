@@ -20,7 +20,7 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
     const response = Response.redirect(new URL(redirectTarget, url.origin), 302);
     response.headers.append(
       "set-cookie",
-      `${COOKIE_NAME}=${encodeURIComponent(code.toUpperCase())}; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax`,
+      `${COOKIE_NAME}=${encodeURIComponent(code.toUpperCase())}; Path=/; Max-Age=${60 * 60 * 24 * 90}; SameSite=Lax`,
     );
     return response;
   } catch (error) {

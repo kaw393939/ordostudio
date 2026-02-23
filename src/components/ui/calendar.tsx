@@ -189,7 +189,15 @@ function CalendarDayButton({
 
   const ref = React.useRef<HTMLButtonElement>(null)
   React.useEffect(() => {
-    if (modifiers.focused) ref.current?.focus()
+    const node = ref.current
+    if (!node) return
+    if (!modifiers.focused) return
+
+    try {
+      node.focus({ preventScroll: true })
+    } catch {
+      node.focus()
+    }
   }, [modifiers.focused])
 
   return (

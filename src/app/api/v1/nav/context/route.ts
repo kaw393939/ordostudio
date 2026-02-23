@@ -4,31 +4,36 @@ import { withRequestLogging } from "../../../../../lib/api/request-logging";
 
 type Audience = "guest" | "user" | "admin";
 
-const resolveAudience = (request: Request): Audience => {
+type NavContext = {
+  audience: Audience;
+  roles: string[];
+};
+
+const resolveContext = (request: Request): NavContext => {
   const sessionToken = parseSessionTokenFromCookie(request.headers.get("cookie"));
   if (!sessionToken) {
-    return "guest";
+    return { audience: "guest", roles: [] };
   }
 
   const user = getUserFromSession(sessionToken);
   if (!user) {
-    return "guest";
+    return { audience: "guest", roles: [] };
   }
 
-  if (user.roles.includes("ADMIN") || user.roles.includes("SUPER_ADMIN")) {
-    return "admin";
+  const roles = [...(user.roles ?? [])];
+
+  if (user.roles.includes("ADMIN") || user.roles.includes("SUPER_ADMIN") || user.roles.includes("MAESTRO")) {
+    return { audience: "admin", roles };
   }
 
-  return "user";
+  return { audience: "user", roles };
 };
 
 async function _GET(request: Request) {
-  const audience = resolveAudience(request);
+  const context = resolveContext(request);
 
   return hal(
-    {
-      audience,
-    },
+    context,
     {
       self: { href: "/api/v1/nav/context" },
       root: { href: "/api/v1" },

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Account",
+  title: "Dashboard",
   openGraph: {
-    title: "Account",
+    title: "Dashboard",
   },
   alternates: {
     canonical: "/account",

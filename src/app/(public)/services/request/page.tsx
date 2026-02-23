@@ -175,9 +175,9 @@ export default function ServiceRequestPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="SOLO">Solo</SelectItem>
-                <SelectItem value="2_10">2\u201310</SelectItem>
-                <SelectItem value="11_50">11\u201350</SelectItem>
-                <SelectItem value="51_200">51\u2013200</SelectItem>
+                <SelectItem value="2_10">{"2\u201310"}</SelectItem>
+                <SelectItem value="11_50">{"11\u201350"}</SelectItem>
+                <SelectItem value="51_200">{"51\u2013200"}</SelectItem>
                 <SelectItem value="200_PLUS">200+</SelectItem>
               </SelectContent>
             </Select>

@@ -1,4 +1,4 @@
-export const MUTABLE_ROLES = ["ADMIN"] as const;
+export const MUTABLE_ROLES = ["AFFILIATE", "APPRENTICE", "MAESTRO", "ADMIN"] as const;
 
 type UserFilterInput = {
   search?: string;
