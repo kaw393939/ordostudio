@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+data/*.db
+data/*.db-journal
+tmp/
+*.md
+project_management/
+e2e/
+code_export/
+.env
+.env.local
+.env.*.local

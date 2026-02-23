@@ -1,0 +1,359 @@
+{
+  "thresholds": {
+    "performance": 60,
+    "accessibility": 90,
+    "best-practices": 90,
+    "seo": 90
+  },
+  "coreWebVitalsBudgets": {
+    "requiredPaths": [
+      "/",
+      "/events",
+      "/events/lighthouse-open",
+      "/login",
+      "/admin"
+    ],
+    "budgets": {
+      "lcpMs": 2500,
+      "inpMs": 200,
+      "cls": 0.1,
+      "tbtMs": 300
+    }
+  },
+  "publicSeoGate": {
+    "requiredPaths": [
+      "/",
+      "/events",
+      "/events/lighthouse-open",
+      "/login",
+      "/register"
+    ],
+    "minimumScore": 95
+  },
+  "audited": [
+    {
+      "area": "unauthenticated",
+      "path": "/",
+      "url": "http://localhost:3000/",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "lcpMs": 71.546,
+        "inpMs": 26.091,
+        "cls": 0,
+        "tbtMs": 0
+      }
+    },
+    {
+      "area": "unauthenticated",
+      "path": "/events",
+      "url": "http://localhost:3000/events",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "lcpMs": 69.668,
+        "inpMs": 24.84,
+        "cls": 0.0126939987741879,
+        "tbtMs": 0
+      }
+    },
+    {
+      "area": "unauthenticated",
+      "path": "/events/lighthouse-open",
+      "url": "http://localhost:3000/events/lighthouse-open",
+      "scores": {
+        "performance": 100,
+        "accessibility": 98,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "lcpMs": 189.073,
+        "inpMs": 24.828,
+        "cls": 0.05274949654145872,
+        "tbtMs": 0
+      }
+    },
+    {
+      "area": "unauthenticated",
+      "path": "/events/lighthouse-full",
+      "url": "http://localhost:3000/events/lighthouse-full",
+      "scores": {
+        "performance": 100,
+        "accessibility": 98,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "lcpMs": 179.105,
+        "inpMs": 16,
+        "cls": 0.05274949654145872,
+        "tbtMs": 0
+      }
+    },
+    {
+      "area": "unauthenticated",
+      "path": "/login",
+      "url": "http://localhost:3000/login",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "lcpMs": 54.019,
+        "inpMs": 24.793,
+        "cls": 0,
+        "tbtMs": 0
+      }
+    },
+    {
+      "area": "unauthenticated",
+      "path": "/register",
+      "url": "http://localhost:3000/register",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "lcpMs": 58.92,
+        "inpMs": 25.852,
+        "cls": 0,
+        "tbtMs": 0
+      }
+    },
+    {
+      "area": "unauthenticated",
+      "path": "/privacy",
+      "url": "http://localhost:3000/privacy",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "lcpMs": 49.596,
+        "inpMs": 24.302,
+        "cls": 0,
+        "tbtMs": 0
+      }
+    },
+    {
+      "area": "unauthenticated",
+      "path": "/terms",
+      "url": "http://localhost:3000/terms",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "lcpMs": 67.116,
+        "inpMs": 25.267,
+        "cls": 0,
+        "tbtMs": 0
+      }
+    },
+    {
+      "area": "authenticatedUser",
+      "path": "/account",
+      "url": "http://localhost:3000/account",
+      "scores": {
+        "performance": 100,
+        "accessibility": 98,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "lcpMs": 562.617,
+        "inpMs": 25.483,
+        "cls": 0.04865596591074921,
+        "tbtMs": 0
+      }
+    },
+    {
+      "area": "authenticatedUser",
+      "path": "/events/lighthouse-full",
+      "url": "http://localhost:3000/events/lighthouse-full",
+      "scores": {
+        "performance": 100,
+        "accessibility": 98,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "lcpMs": 235.457,
+        "inpMs": 27.271,
+        "cls": 0.05449750459679538,
+        "tbtMs": 0
+      }
+    },
+    {
+      "area": "authenticatedAdmin",
+      "path": "/admin",
+      "url": "http://localhost:3000/admin",
+      "scores": {
+        "performance": 100,
+        "accessibility": 96,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "lcpMs": 168.445,
+        "inpMs": 25.392,
+        "cls": 0.016312056737588655,
+        "tbtMs": 0
+      }
+    },
+    {
+      "area": "authenticatedAdmin",
+      "path": "/admin/events",
+      "url": "http://localhost:3000/admin/events",
+      "scores": {
+        "performance": 99,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "lcpMs": 199.324,
+        "inpMs": 25.274,
+        "cls": 0.07340425531914893,
+        "tbtMs": 0
+      }
+    },
+    {
+      "area": "authenticatedAdmin",
+      "path": "/admin/audit",
+      "url": "http://localhost:3000/admin/audit",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "lcpMs": 187.317,
+        "inpMs": 25.714,
+        "cls": 0.032624113475177303,
+        "tbtMs": 0
+      }
+    },
+    {
+      "area": "authenticatedAdmin",
+      "path": "/admin/users",
+      "url": "http://localhost:3000/admin/users",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "lcpMs": 194.455,
+        "inpMs": 25.811,
+        "cls": 0.03153664302600473,
+        "tbtMs": 0
+      }
+    },
+    {
+      "area": "authenticatedAdmin",
+      "path": "/admin/events/lighthouse-open",
+      "url": "http://localhost:3000/admin/events/lighthouse-open",
+      "scores": {
+        "performance": 99,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "lcpMs": 68.835,
+        "inpMs": 25.154,
+        "cls": 0.06220330969267139,
+        "tbtMs": 0
+      }
+    },
+    {
+      "area": "authenticatedAdmin",
+      "path": "/admin/events/lighthouse-open/registrations",
+      "url": "http://localhost:3000/admin/events/lighthouse-open/registrations",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "lcpMs": 186.485,
+        "inpMs": 25.547,
+        "cls": 0.03539716312056737,
+        "tbtMs": 0
+      }
+    },
+    {
+      "area": "authenticatedAdmin",
+      "path": "/admin/events/lighthouse-open/export",
+      "url": "http://localhost:3000/admin/events/lighthouse-open/export",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metrics": {
+        "lcpMs": 171.601,
+        "inpMs": 25.159,
+        "cls": 0.022238770685579196,
+        "tbtMs": 0
+      }
+    }
+  ],
+  "skipped": [],
+  "routeBudgets": {
+    "configPath": "/Users/kwilliams/Projects/lms_219/scripts/lighthouse-route-budgets.json",
+    "waiverPath": "/Users/kwilliams/Projects/lms_219/scripts/lighthouse-budget-waivers.json",
+    "varianceBuffer": 2,
+    "failures": [],
+    "warnings": [],
+    "waived": [],
+    "expired": [],
+    "tierBudgets": {
+      "public": {
+        "performance": 90,
+        "accessibility": 96,
+        "best-practices": 96,
+        "seo": 96
+      },
+      "authenticated": {
+        "performance": 85,
+        "accessibility": 95,
+        "best-practices": 95,
+        "seo": 94
+      },
+      "admin": {
+        "performance": 80,
+        "accessibility": 94,
+        "best-practices": 94,
+        "seo": 90
+      }
+    },
+    "areaDefaults": {
+      "unauthenticated": "public",
+      "authenticatedUser": "authenticated",
+      "authenticatedAdmin": "admin"
+    }
+  }
+}

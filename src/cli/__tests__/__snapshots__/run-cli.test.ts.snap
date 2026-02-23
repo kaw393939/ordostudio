@@ -1,0 +1,31 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`appctl foundation > matches help snapshot 1`] = `
+"Usage: appctl [options] [command]
+
+Super Admin Control Plane CLI
+
+Options:
+  --json             emit strict JSON output
+  --quiet            reduce human-readable output
+  --no-color         disable ANSI colors
+  --trace            show stack traces for errors
+  --dry-run          validate request without mutating state
+  --yes              skip interactive confirmations
+  --token <token>    super-admin service token override
+  --env <env>        runtime environment (choices: "local", "staging", "prod")
+  -h, --help         display help for command
+
+Commands:
+  newsletter         Newsletter lifecycle commands
+  doctor             Validate config and runtime prerequisites
+  db                 Database lifecycle commands
+  auth               Authentication and service tokens
+  user               User management commands
+  event              Event lifecycle commands
+  reg                Event registration commands
+  checkin [options]  Check in a registered user
+  jobs               Background job queue management
+  help [command]     display help for command
+"
+`;

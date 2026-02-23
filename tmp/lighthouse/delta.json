@@ -1,0 +1,112 @@
+{
+  "basePath": "tmp/lighthouse/baseline-summary.json",
+  "currentPath": "tmp/lighthouse/summary.json",
+  "deltas": [
+    {
+      "area": "unauthenticated",
+      "path": "/",
+      "status": "new",
+      "deltas": null
+    },
+    {
+      "area": "unauthenticated",
+      "path": "/events",
+      "status": "new",
+      "deltas": null
+    },
+    {
+      "area": "unauthenticated",
+      "path": "/events/lighthouse-open",
+      "status": "new",
+      "deltas": null
+    },
+    {
+      "area": "unauthenticated",
+      "path": "/events/lighthouse-full",
+      "status": "new",
+      "deltas": null
+    },
+    {
+      "area": "unauthenticated",
+      "path": "/login",
+      "status": "new",
+      "deltas": null
+    },
+    {
+      "area": "unauthenticated",
+      "path": "/register",
+      "status": "new",
+      "deltas": null
+    },
+    {
+      "area": "unauthenticated",
+      "path": "/privacy",
+      "status": "new",
+      "deltas": null
+    },
+    {
+      "area": "unauthenticated",
+      "path": "/terms",
+      "status": "new",
+      "deltas": null
+    },
+    {
+      "area": "authenticatedUser",
+      "path": "/account",
+      "status": "new",
+      "deltas": null
+    },
+    {
+      "area": "authenticatedUser",
+      "path": "/events/lighthouse-full",
+      "status": "new",
+      "deltas": null
+    },
+    {
+      "area": "authenticatedAdmin",
+      "path": "/admin",
+      "status": "new",
+      "deltas": null
+    },
+    {
+      "area": "authenticatedAdmin",
+      "path": "/admin/events",
+      "status": "new",
+      "deltas": null
+    },
+    {
+      "area": "authenticatedAdmin",
+      "path": "/admin/audit",
+      "status": "new",
+      "deltas": null
+    },
+    {
+      "area": "authenticatedAdmin",
+      "path": "/admin/users",
+      "status": "new",
+      "deltas": null
+    },
+    {
+      "area": "authenticatedAdmin",
+      "path": "/admin/events/lighthouse-open",
+      "status": "new",
+      "deltas": null
+    },
+    {
+      "area": "authenticatedAdmin",
+      "path": "/admin/events/lighthouse-open/registrations",
+      "status": "new",
+      "deltas": null
+    },
+    {
+      "area": "authenticatedAdmin",
+      "path": "/admin/events/lighthouse-open/export",
+      "status": "new",
+      "deltas": null
+    }
+  ],
+  "regression": {
+    "warnings": [],
+    "failures": []
+  }
+}

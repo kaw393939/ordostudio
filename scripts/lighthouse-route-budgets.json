@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "varianceBuffer": 2,
+  "tierBudgets": {
+    "public": {
+      "performance": 90,
+      "accessibility": 96,
+      "best-practices": 96,
+      "seo": 96
+    },
+    "authenticated": {
+      "performance": 85,
+      "accessibility": 95,
+      "best-practices": 95,
+      "seo": 94
+    },
+    "admin": {
+      "performance": 80,
+      "accessibility": 94,
+      "best-practices": 94,
+      "seo": 90
+    }
+  },
+  "areaDefaults": {
+    "unauthenticated": "public",
+    "authenticatedUser": "authenticated",
+    "authenticatedAdmin": "admin"
+  },
+  "routeOverrides": {
+    "authenticatedAdmin::/admin/events/lighthouse-open/registrations": "admin",
+    "authenticatedAdmin::/admin/events/lighthouse-open/export": "admin"
+  }
+}

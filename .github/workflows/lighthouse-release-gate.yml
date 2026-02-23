@@ -1,0 +1,80 @@
+name: Lighthouse Release Gate
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lighthouse-gate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production app
+        run: npm run build
+
+      - name: Start production app
+        run: |
+          npm run start -- --port 3000 > /tmp/next.log 2>&1 &
+          echo $! > /tmp/next.pid
+
+      - name: Wait for app
+        run: |
+          for i in {1..60}; do
+            if curl -sf http://localhost:3000/api/v1 > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "App did not become ready in time"
+          cat /tmp/next.log || true
+          exit 1
+
+      - name: Run seeded Lighthouse gate
+        run: npm run test:lighthouse:seeded
+
+      - name: Create baseline summary from previous commit
+        run: |
+          mkdir -p tmp/lighthouse
+          git show HEAD^:tmp/lighthouse/summary.json > tmp/lighthouse/baseline-summary.json || true
+
+      - name: Compute Lighthouse deltas
+        run: npm run test:lighthouse:delta -- --base tmp/lighthouse/baseline-summary.json --current tmp/lighthouse/summary.json
+
+      - name: Publish Lighthouse summary
+        if: always()
+        run: |
+          echo "## Lighthouse Summary" >> "$GITHUB_STEP_SUMMARY"
+          cat tmp/lighthouse/summary.md >> "$GITHUB_STEP_SUMMARY"
+          if [ -f tmp/lighthouse/delta.md ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Lighthouse Delta" >> "$GITHUB_STEP_SUMMARY"
+            cat tmp/lighthouse/delta.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload Lighthouse artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-artifacts
+          path: tmp/lighthouse
+
+      - name: Stop production app
+        if: always()
+        run: |
+          if [ -f /tmp/next.pid ]; then
+            kill "$(cat /tmp/next.pid)" || true
+          fi

@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      - APPCTL_ENV=local
+      - APPCTL_DB_FILE=/app/data/app.db
+      - LOG_FORMAT=pretty
+    restart: unless-stopped

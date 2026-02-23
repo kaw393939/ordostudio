@@ -1,0 +1,10 @@
+[
+  {
+    "area": "authenticatedAdmin",
+    "path": "/admin/events/lighthouse-open/export",
+    "category": "performance",
+    "owner": "platform",
+    "reason": "Large export table render path pending Sprint 44 reductions",
+    "expiresOn": "2026-03-15"
+  }
+]

@@ -1,36 +1,94 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LMS 219 — Super Admin Control Plane
 
-## Getting Started
+This repository contains:
 
-First, run the development server:
+- A Next.js application shell (`src/app`) for future UI work.
+- A production-oriented CLI control plane (`appctl`) for admin/super-admin operations.
+
+The CLI is the operational source of truth and currently supports:
+
+- DB lifecycle: `status`, `migrate`, `seed`, `backup`, `restore`, `doctor`
+- Service token management: create/revoke
+- User and role management
+- Event lifecycle management
+- Registration, check-in, and event export workflows
+
+## Tech Stack
+
+- Runtime: Node.js 20+
+- Language: TypeScript
+- Web: Next.js 16
+- CLI: Commander + Zod + cosmiconfig
+- Data: SQLite (`better-sqlite3`)
+- Logging: Pino
+- Testing: Vitest
+
+## Quick Start
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Run quality checks:
+
+```bash
+npm test
+npm run lint
+npm run build
+```
+
+Run the web app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Run the CLI:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run cli -- --help
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## CLI Basics
 
-## Learn More
+Common examples:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+# Health
+npm run cli -- doctor --env local --json
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# DB setup
+npm run cli -- db migrate --env local
+npm run cli -- db seed --env local
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Create token + user
+npm run cli -- auth token create --name bootstrap --env local --json
+npm run cli -- user create --email admin@example.com --status ACTIVE --env local
+```
 
-## Deploy on Vercel
+Global flags:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `--env <local|staging|prod>`
+- `--json`
+- `--token <token>`
+- `--yes`
+- `--trace`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Documentation
+
+Detailed manual:
+
+- [docs/cli-manual.md](docs/cli-manual.md)
+- [CLI Architecture (Contributor Notes)](docs/cli-manual.md#10-cli-architecture-contributor-notes)
+- [CLI Architecture Guide](docs/cli-architecture.md)
+
+Project planning and sprint artifacts:
+
+- [project_management/sprints/completed](project_management/sprints/completed)
+
+## Current Status
+
+All planned implementation sprints (1–6) are completed and manually verified through CLI-driven signoff.
+
