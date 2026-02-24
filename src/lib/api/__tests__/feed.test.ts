@@ -67,18 +67,18 @@ describe("aggregateFeed", () => {
     expect(result).toHaveLength(3);
     
     // Check mapping
-    const regItem = result.find(r => r.id === "reg-1");
+    const regItem = result.find(r => r.id === "reg-reg-1");
     expect(regItem).toMatchObject({
-      id: "reg-1",
+      id: "reg-reg-1",
       type: "AccountRegistration",
       timestamp: "2026-03-01T10:00:00Z",
       title: "Test Event",
       description: "Registered for event",
     });
 
-    const timelineItem = result.find(r => r.id === "reg-2");
+    const timelineItem = result.find(r => r.id === "timeline-reg-2");
     expect(timelineItem).toMatchObject({
-      id: "reg-2",
+      id: "timeline-reg-2",
       type: "EngagementTimelineItem",
       timestamp: "2026-01-01T10:00:00Z",
       title: "Past Event",
@@ -137,8 +137,8 @@ describe("aggregateFeed", () => {
     const result = aggregateFeed({ registrations, timelineItems, followUpActions: [] });
     
     // Newest first means 2026-03-01 comes before 2026-01-01
-    expect(result[0].id).toBe("reg-1");
-    expect(result[1].id).toBe("reg-2");
+    expect(result[0].id).toBe("reg-reg-1");
+    expect(result[1].id).toBe("timeline-reg-2");
   });
 
   it("filters items by type", () => {

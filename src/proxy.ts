@@ -97,6 +97,7 @@ const UPLOAD_MAX_BODY_BYTES = 5_242_880; // 5 MB — matches upload-validation.t
 const UPLOAD_PATH_PATTERNS = [
   /^\/api\/v1\/events\/[^/]+\/image$/,
   /^\/api\/v1\/account\/apprentice-profile\/avatar$/,
+  /^\/api\/v1\/account\/avatar$/,
   /^\/api\/v1\/account\/field-reports\/attachments$/,
 ];
 

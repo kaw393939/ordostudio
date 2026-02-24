@@ -1142,6 +1142,34 @@ CREATE TABLE IF NOT EXISTS role_requests (
 );
 `,
   },
+  {
+    name: "030_triage_tickets",
+    sql: `
+CREATE TABLE IF NOT EXISTS triage_tickets (
+  id TEXT PRIMARY KEY,
+  intake_request_id TEXT NOT NULL,
+  category TEXT NOT NULL,
+  confidence REAL NOT NULL,
+  summary TEXT NOT NULL,
+  recommended_action TEXT NOT NULL,
+  priority TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  admin_override_category TEXT,
+  admin_override_reason TEXT,
+  overridden_by TEXT,
+  overridden_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (intake_request_id) REFERENCES intake_requests(id) ON DELETE CASCADE,
+  CHECK (category IN ('billing_support','technical_issue','general_inquiry','feature_request','partnership','urgent_escalation','spam')),
+  CHECK (priority IN ('low','medium','high','urgent')),
+  CHECK (status IN ('pending','triaged','auto_responded','escalated','resolved','closed'))
+);
+CREATE INDEX IF NOT EXISTS idx_triage_tickets_intake ON triage_tickets(intake_request_id);
+CREATE INDEX IF NOT EXISTS idx_triage_tickets_status ON triage_tickets(status);
+CREATE INDEX IF NOT EXISTS idx_triage_tickets_category ON triage_tickets(category);
+`,
+  },
 ];
 
 const ensureMetaTable = (db: Database.Database): void => {

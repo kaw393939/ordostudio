@@ -1,5 +1,6 @@
 import { MenuNav } from "@/components/navigation/menu-nav";
 import { MobileNavDrawer } from "@/components/navigation/mobile-nav-drawer";
+import { UserMenu } from "@/components/navigation/user-menu";
 import { getMenuContext } from "@/lib/navigation/menu-audience";
 import Link from "next/link";
 
@@ -21,9 +22,8 @@ export default async function PublicLayout({
             </Link>
             <div className="flex items-center gap-3">
               {isLoggedIn ? (
-                <div className="hidden items-center gap-3 type-label text-text-secondary md:flex">
-                  <Link href="/dashboard" className="motion-base hover:text-text-primary" prefetch>Dashboard</Link>
-                  <Link href="/logout" className="motion-base hover:text-text-primary" prefetch>Logout</Link>
+                <div className="hidden items-center gap-3 md:flex">
+                  <UserMenu />
                 </div>
               ) : null}
               <MobileNavDrawer context={context} />

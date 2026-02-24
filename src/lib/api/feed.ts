@@ -28,7 +28,7 @@ export function aggregateFeed(
 
   for (const reg of data.registrations) {
     items.push({
-      id: reg.registration_id,
+      id: `reg-${reg.registration_id}`,
       type: "AccountRegistration",
       timestamp: reg.start_at,
       title: reg.event_title,
@@ -39,7 +39,7 @@ export function aggregateFeed(
 
   for (const timeline of data.timelineItems) {
     items.push({
-      id: timeline.registration_id,
+      id: `timeline-${timeline.registration_id}`,
       type: "EngagementTimelineItem",
       timestamp: timeline.start_at,
       title: timeline.event_title,

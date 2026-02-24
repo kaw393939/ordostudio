@@ -82,11 +82,13 @@ export const createSubscription = async (input: {
     trial_period_days: input.trialPeriodDays,
   });
 
+  // In Stripe v20 period dates live on items, not the subscription itself
+  const firstItem = subscription.items?.data?.[0];
   return {
     id: subscription.id,
     status: subscription.status,
-    currentPeriodStart: subscription.current_period_start,
-    currentPeriodEnd: subscription.current_period_end,
+    currentPeriodStart: firstItem?.current_period_start ?? 0,
+    currentPeriodEnd: firstItem?.current_period_end ?? 0,
     cancelAtPeriodEnd: subscription.cancel_at_period_end,
   };
 };
@@ -101,11 +103,12 @@ export const cancelSubscription = async (
     cancel_at_period_end: cancelAtPeriodEnd,
   });
 
+  const firstItem = subscription.items?.data?.[0];
   return {
     id: subscription.id,
     status: subscription.status,
-    currentPeriodStart: subscription.current_period_start,
-    currentPeriodEnd: subscription.current_period_end,
+    currentPeriodStart: firstItem?.current_period_start ?? 0,
+    currentPeriodEnd: firstItem?.current_period_end ?? 0,
     cancelAtPeriodEnd: subscription.cancel_at_period_end,
   };
 };

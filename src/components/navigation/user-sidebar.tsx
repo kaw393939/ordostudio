@@ -14,17 +14,16 @@ type UserSidebarProps = {
 export function UserSidebar({ context, children }: UserSidebarProps) {
   const items = resolveMenuForContext("userAccount", context);
   const mainItems = items.filter((i) => i.id !== "logout");
-  const logoutItem = items.find((i) => i.id === "logout");
 
   return (
     <div className="container-grid flex flex-col gap-6 py-6 md:flex-row md:gap-8">
       {/* Desktop sidebar */}
       <aside className="hidden shrink-0 md:block md:w-48" aria-label="Account navigation">
-        <SidebarContent mainItems={mainItems} logoutItem={logoutItem ?? null} />
+        <SidebarContent mainItems={mainItems} />
       </aside>
 
       {/* Mobile: top bar with drawer trigger + inline drawer */}
-      <MobileUserNav mainItems={mainItems} logoutItem={logoutItem ?? null} />
+      <MobileUserNav mainItems={mainItems} />
 
       <main className="min-w-0 flex-1">{children}</main>
     </div>
@@ -33,7 +32,7 @@ export function UserSidebar({ context, children }: UserSidebarProps) {
 
 type SidebarItem = { id: string; label: string; href: string; match: "exact" | "prefix" };
 
-function SidebarContent({ mainItems, logoutItem }: { mainItems: SidebarItem[]; logoutItem: SidebarItem | null }) {
+function SidebarContent({ mainItems }: { mainItems: SidebarItem[] }) {
   const pathname = usePathname();
 
   return (
@@ -56,28 +55,16 @@ function SidebarContent({ mainItems, logoutItem }: { mainItems: SidebarItem[]; l
           </Link>
         );
       })}
-      {logoutItem ? (
-        <div className="mt-4 border-t border-border-subtle pt-4">
-          <Link
-            href={logoutItem.href}
-            className="motion-base block rounded-sm px-3 py-2 type-label text-text-secondary hover:bg-action-secondary hover:text-text-primary"
-            prefetch
-          >
-            {logoutItem.label}
-          </Link>
-        </div>
-      ) : null}
     </nav>
   );
 }
 
-function MobileUserNav({ mainItems, logoutItem }: { mainItems: SidebarItem[]; logoutItem: SidebarItem | null }) {
+function MobileUserNav({ mainItems }: { mainItems: SidebarItem[] }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
   // Find current page label for the trigger button
-  const allItems = logoutItem ? [...mainItems, logoutItem] : mainItems;
-  const currentItem = allItems.find((i) => isMenuItemActive(i, pathname));
+  const currentItem = mainItems.find((i) => isMenuItemActive(i, pathname));
 
   return (
     <div className="md:hidden">
@@ -118,17 +105,6 @@ function MobileUserNav({ mainItems, logoutItem }: { mainItems: SidebarItem[]; lo
                 </Link>
               );
             })}
-            {logoutItem ? (
-              <div className="mt-2 border-t border-border-subtle pt-2">
-                <Link
-                  href={logoutItem.href}
-                  className="motion-base block rounded-sm px-3 py-2 type-label text-text-secondary hover:bg-action-secondary hover:text-text-primary"
-                  prefetch
-                >
-                  {logoutItem.label}
-                </Link>
-              </div>
-            ) : null}
           </div>
         </nav>
       ) : null}

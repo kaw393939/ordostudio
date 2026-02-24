@@ -9,6 +9,7 @@ import { Label } from "@/components/forms";
 import { Textarea } from "@/components/ui/textarea";
 import { requestHal } from "@/lib/hal-client";
 import { LoadingState } from "@/components/patterns";
+import { AvatarUpload } from "@/components/profile/avatar-upload";
 
 type MeResponse = {
   id: string;
@@ -101,13 +102,13 @@ export default function AccountPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="profilePictureUrl">Profile Picture URL</Label>
-            <Input
-              id="profilePictureUrl"
-              type="url"
-              value={profilePictureUrl}
-              onChange={(e) => setProfilePictureUrl(e.target.value)}
-              placeholder="https://example.com/avatar.jpg"
+            <Label>Profile Picture</Label>
+            <AvatarUpload
+              currentUrl={profilePictureUrl || null}
+              displayName={displayName || null}
+              email={user?.email || ""}
+              onUploaded={(url) => setProfilePictureUrl(url)}
+              onRemoved={() => setProfilePictureUrl("")}
             />
           </div>
 
