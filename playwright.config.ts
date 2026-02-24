@@ -46,6 +46,6 @@ export default defineConfig({
   webServer: {
     command: "npm run seed:localhost && npm run dev -- -p 3000",
     url: "http://localhost:3000",
-    reuseExistingServer: false,
+    reuseExistingServer: true,
   },
 });

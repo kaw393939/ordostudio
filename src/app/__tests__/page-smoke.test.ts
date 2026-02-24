@@ -47,7 +47,6 @@ const pages = [
   { path: "../(public)/page", label: "home" },
   { path: "../(public)/about/page", label: "about" },
   { path: "../(public)/account/page", label: "account" },
-  { path: "../(public)/account/apprentice-profile/page", label: "account/apprentice-profile" },
   { path: "../(public)/apprentices/page", label: "apprentices" },
   { path: "../(public)/apprentices/[handle]/page", label: "apprentices/[handle]" },
   { path: "../(public)/events/page", label: "events" },

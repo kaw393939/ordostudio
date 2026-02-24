@@ -214,12 +214,14 @@ export const listApprovedApprentices = (): ApprenticeProfileRecord[] => {
     return db
       .prepare(
         `
-SELECT user_id, handle, display_name, headline, bio, location, website_url, tags, status,
-       approved_at, approved_by, suspended_at, suspended_by, suspension_reason,
-       created_at, updated_at
-FROM apprentice_profiles
-WHERE status = 'APPROVED'
-ORDER BY display_name ASC
+SELECT ap.user_id, ap.handle, ap.display_name, ap.headline, ap.bio, ap.location, ap.website_url, ap.tags, ap.status,
+       ap.approved_at, ap.approved_by, ap.suspended_at, ap.suspended_by, ap.suspension_reason,
+       ap.created_at, ap.updated_at
+FROM apprentice_profiles ap
+JOIN user_roles ur ON ap.user_id = ur.user_id
+JOIN roles r ON ur.role_id = r.id
+WHERE ap.status = 'APPROVED' AND r.name = 'APPRENTICE'
+ORDER BY ap.display_name ASC
 `,
       )
       .all() as ApprenticeProfileRecord[];

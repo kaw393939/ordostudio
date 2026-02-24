@@ -16,6 +16,10 @@ export type ProblemRecoveryViewModel = {
 const TRANSIENT_STATUSES = new Set([429, 500, 502, 503, 504]);
 
 const titleByStatus = (status: number): string => {
+  if (status === 400) {
+    return "Invalid request";
+  }
+
   if (status === 401) {
     return "Sign in required";
   }
@@ -32,6 +36,10 @@ const titleByStatus = (status: number): string => {
     return "This changed while you were working";
   }
 
+  if (status === 422) {
+    return "Validation failed";
+  }
+
   if (TRANSIENT_STATUSES.has(status)) {
     return "Temporary service issue";
   }
@@ -40,12 +48,20 @@ const titleByStatus = (status: number): string => {
 };
 
 const fallbackCause = (status: number): string => {
+  if (status === 400) {
+    return "The request contained invalid data. Please review the form and try again.";
+  }
+
   if (status === 401) {
     return "Your session may be missing or expired.";
   }
 
   if (status === 403) {
     return "Your account does not have permission for this action.";
+  }
+
+  if (status === 422) {
+    return "Some fields did not pass validation. Please correct them and resubmit.";
   }
 
   if (status === 404) {

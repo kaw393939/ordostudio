@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { ProblemDetailsPanel } from "@/components/problem-details";
 import { Breadcrumbs } from "@/components/patterns";
 import { Button, Card } from "@/components/primitives";
-import { Countdown } from "@/components/ui/countdown";
+import { Skeleton } from "@/components/ui/skeleton";
 import { RelativeTime } from "@/components/forms/relative-time";
 import { buildGoogleCalendarUrl } from "@/lib/calendar-links";
 import { formatEventPrimaryRange, formatTimeZoneLabel } from "@/lib/event-date-ui";
@@ -15,6 +16,11 @@ import { attendanceInstructions } from "@/lib/event-delivery";
 import { REGISTRATION_CANCELLED_MESSAGE, registrationCreateMessage } from "@/lib/registration-feedback";
 import { normalizeRegistrationStatus, resolvePrimaryAction, statusChipClass } from "@/lib/event-detail-action";
 import { parseISO } from "@/lib/date-time";
+
+const Countdown = dynamic(
+  () => import("@/components/ui/countdown").then((m) => ({ default: m.Countdown })),
+  { loading: () => <Skeleton className="h-6 w-32" />, ssr: false },
+);
 
 type EventResource = {
   id: string;

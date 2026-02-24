@@ -9,6 +9,7 @@ import { PUT as putMyApprenticeProfile } from "../api/v1/account/apprentice-prof
 import {
   cleanupStandardE2EFixtures,
   setupStandardE2EFixture,
+  addApprenticeRole,
   type StandardE2EFixture,
 } from "./helpers/e2e-fixtures";
 
@@ -93,6 +94,8 @@ describe("e2e apprentice profiles", () => {
     );
 
     expect(approveResponse.status).toBe(200);
+
+    addApprenticeRole(fixture.dbPath, "usera@example.com");
 
     const publicListAfterApproval = await getPublicApprentices(new Request("http://localhost:3000/api/v1/apprentices"));
     expect(publicListAfterApproval.status).toBe(200);

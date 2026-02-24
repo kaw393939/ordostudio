@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/forms";
 import { Textarea } from "@/components/ui/textarea";
 import { requestHal } from "@/lib/hal-client";
+import { LoadingState } from "@/components/patterns";
 
 type MeResponse = {
   id: string;
@@ -74,10 +75,7 @@ export default function AccountPage() {
   if (isLoading) {
     return (
       <PageShell title="My Account">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 w-1/3 rounded bg-surface-sunken" />
-          <div className="h-32 rounded bg-surface-sunken" />
-        </div>
+        <LoadingState title="Loading profile" description="Fetching your account details." rows={4} />
       </PageShell>
     );
   }

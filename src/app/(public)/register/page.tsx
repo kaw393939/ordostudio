@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, Suspense } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { ProblemDetailsPanel } from "@/components/problem-details";
+import { LoadingState } from "@/components/patterns";
 import { follow, getRoot, requestHal, type HalResource, type ProblemDetails } from "@/lib/hal-client";
 import { registerSchema, type RegisterFormValues } from "@/lib/auth-forms";
 import {
@@ -23,8 +24,11 @@ import { PasswordInput } from "@/components/forms/password-input";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { useSubmitState } from "@/components/forms/use-submit-state";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const role = searchParams.get("role");
+
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
@@ -73,7 +77,13 @@ export default function RegisterPage() {
       return;
     }
 
-    router.push("/login");
+    if (role === "affiliate") {
+      router.push("/login?returnTo=/apply/affiliate");
+    } else if (role === "apprentice") {
+      router.push("/login?returnTo=/apply/apprentice");
+    } else {
+      router.push("/login");
+    }
   };
 
   const { state, handleSubmit: submitWithState } = useSubmitState(
@@ -81,7 +91,7 @@ export default function RegisterPage() {
   );
 
   return (
-    <main id="main-content" tabIndex={-1} className="mx-auto max-w-md p-6">
+    <main id="main-content" className="mx-auto max-w-md p-6">
       {/* i18n: page title */}
       <h1 className="text-2xl font-semibold">Register</h1>
       {/* i18n: page subtitle */}
@@ -189,5 +199,13 @@ export default function RegisterPage() {
         Already have an account? <Link className="underline" href="/login">Login</Link>
       </p>
     </main>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<LoadingState title="Loading" description="Preparing registration form." rows={2} />}>
+      <RegisterForm />
+    </Suspense>
   );
 }

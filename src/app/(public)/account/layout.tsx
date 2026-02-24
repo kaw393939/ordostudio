@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { UserAccountNav } from "@/components/navigation/user-account-nav";
+import { UserSidebar } from "@/components/navigation/user-sidebar";
+import { getMenuContext } from "@/lib/navigation/menu-audience";
 
 export const metadata: Metadata = {
   title: "My Account",
@@ -11,13 +12,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function AccountLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      <div className="container-grid pt-6">
-        <UserAccountNav />
-      </div>
-      {children}
-    </>
-  );
+export default async function AccountLayout({ children }: { children: React.ReactNode }) {
+  const context = await getMenuContext();
+
+  return <UserSidebar context={context}>{children}</UserSidebar>;
 }

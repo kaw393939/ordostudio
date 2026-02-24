@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   return (
-    <main id="main-content" tabIndex={-1} className="mx-auto max-w-3xl p-6">
+    <main id="main-content" className="mx-auto max-w-3xl p-6">
       <h1 className="type-h2 text-text-primary">Terms of Service</h1>
       <p className="mt-2 type-meta text-text-muted">Last updated: 2026-02-19</p>
 

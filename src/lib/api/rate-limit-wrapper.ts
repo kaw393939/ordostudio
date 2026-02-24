@@ -28,6 +28,10 @@ export function withRateLimit(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return async (...args: any[]) => {
+    if (process.env.NODE_ENV === "development") {
+      return handler(...args);
+    }
+
     const request: Request = args[0];
     const result = consumeRateLimit(
       request,

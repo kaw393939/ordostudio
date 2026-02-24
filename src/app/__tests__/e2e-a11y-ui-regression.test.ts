@@ -12,7 +12,7 @@ describe("e2e a11y/ui regression", () => {
   it("keeps route-level loading boundaries on key public/admin paths", () => {
     const requiredLoadingFiles = [
       "src/app/(public)/events/loading.tsx",
-      "src/app/(public)/account/loading.tsx",
+      "src/app/(public)/dashboard/loading.tsx",
       "src/app/(admin)/admin/events/[slug]/loading.tsx",
       "src/app/(admin)/admin/events/[slug]/registrations/loading.tsx",
       "src/app/(admin)/admin/events/[slug]/export/loading.tsx",

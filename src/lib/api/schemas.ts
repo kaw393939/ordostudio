@@ -251,14 +251,31 @@ export const updatePackageSchema = z.object({
 
 export const createIntakeSchema = z.object({
   offer_slug: optionalString,
-  audience: z.enum(["INDIVIDUAL", "ORGANIZATION", "TEAM", "ENTERPRISE"]).optional(),
+  audience: z.enum(["INDIVIDUAL", "ORGANIZATION", "TEAM", "ENTERPRISE"]),
   organization_name: optionalString,
-  contact_name: optionalString,
-  contact_email: optionalString,
-  goals: optionalString,
+  contact_name: nonEmptyString,
+  contact_email: emailField,
+  goals: nonEmptyString,
   timeline: optionalString,
   constraints: optionalString,
-}).strict();
+}).strict().superRefine((data, ctx) => {
+  if (data.audience === "ORGANIZATION" || data.audience === "TEAM" || data.audience === "ENTERPRISE") {
+    if (!data.organization_name || data.organization_name.trim().length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Organization name is required for this audience.",
+        path: ["organization_name"],
+      });
+    }
+    if (!data.timeline || data.timeline.trim().length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Timeline is required for this audience.",
+        path: ["timeline"],
+      });
+    }
+  }
+});
 
 export const updateIntakeSchema = z.object({
   status: optionalString,

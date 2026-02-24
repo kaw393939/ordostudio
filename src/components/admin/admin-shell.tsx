@@ -117,7 +117,7 @@ export function AdminShell({ audience, roles, environmentLabel, children }: Admi
     const programs = pick(["admin-events", "admin-registrations", "admin-engagements", "admin-offers", "admin-commercial"]);
     const money = pick(["admin-ledger"]);
     const people = pick(["admin-apprentices", "admin-field-reports", "admin-referrals", "admin-newsletter", "admin-users"]);
-    const system = pick(["admin-measurement", "admin-flywheel", "admin-entitlements", "admin-settings", "admin-audit"]);
+    const system = pick(["admin-measurement", "admin-flywheel", "admin-entitlements", "admin-telemetry", "admin-agent-ops", "admin-settings", "admin-audit"]);
 
     const groupedIds = new Set([...core, ...programs, ...money, ...people, ...system].map((item) => item.id));
     const remaining = sidebarMenuItems.filter((item) => !groupedIds.has(item.id));
@@ -209,7 +209,6 @@ export function AdminShell({ audience, roles, environmentLabel, children }: Admi
                   <Link
                     key={item.href}
                     href={item.href}
-                    scroll={false}
                     className={
                       active
                         ? "motion-base flex items-center gap-2 rounded-sm bg-action-secondary px-2 py-2 type-label text-text-primary"
@@ -284,7 +283,6 @@ export function AdminShell({ audience, roles, environmentLabel, children }: Admi
               menu="adminHeaderQuick"
               context={menuContext}
               className="flex flex-wrap items-center gap-3 type-meta text-text-muted"
-              scroll={false}
             />
           </div>
         </div>

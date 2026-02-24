@@ -12,7 +12,7 @@ type MenuNavProps = {
   menu: MenuName;
   audience?: MenuAudience;
   context?: MenuContext;
-  variant?: "header" | "footer";
+  variant?: "header" | "footer" | "sidebar";
   className?: string;
   scroll?: boolean;
 };
@@ -58,7 +58,9 @@ export function MenuNav({ menu, audience, context, variant = "header", className
         className={
           variant === "footer"
             ? "flex flex-1 flex-wrap items-center gap-4"
-            : "flex min-w-0 flex-1 flex-nowrap items-center gap-4 overflow-x-auto whitespace-nowrap"
+            : variant === "sidebar"
+              ? "flex flex-col gap-1"
+              : "flex min-w-0 flex-1 flex-nowrap items-center gap-4 overflow-x-auto whitespace-nowrap"
         }
       >
         {items.map((item) => {
@@ -73,9 +75,13 @@ export function MenuNav({ menu, audience, context, variant = "header", className
             scroll={scroll}
             aria-current={active ? "page" : undefined}
             className={
-              active
-                ? "motion-base text-text-primary underline decoration-current"
-                : "motion-base underline decoration-transparent hover:text-text-primary hover:decoration-current"
+              variant === "sidebar"
+                ? active
+                  ? "motion-base flex items-center gap-2 rounded-sm bg-action-secondary px-2 py-2 type-label text-text-primary"
+                  : "motion-base flex items-center gap-2 rounded-sm px-2 py-2 type-label text-text-secondary hover:bg-action-secondary hover:text-text-primary"
+                : active
+                  ? "motion-base text-text-primary underline decoration-current"
+                  : "motion-base underline decoration-transparent hover:text-text-primary hover:decoration-current"
             }
             prefetch
           >

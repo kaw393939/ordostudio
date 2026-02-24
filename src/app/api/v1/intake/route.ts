@@ -140,7 +140,10 @@ async function _POST(request: Request) {
   }
 
   const parsed = parsePayload(createIntakeSchema, raw, request);
-  if (!parsed.success) return parsed.response;
+  if (!parsed.success) {
+    console.error("Validation failed:", parsed.response);
+    return parsed.response;
+  }
 
   try {
     const created = createIntakeRequest({
@@ -180,6 +183,7 @@ async function _POST(request: Request) {
       { status: 201 },
     );
   } catch (error) {
+    console.error("Intake creation error:", error);
     if (error instanceof InvalidIntakeInputError) {
       return problem(
         {

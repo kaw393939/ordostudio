@@ -103,6 +103,14 @@ const addSuperAdminRole = (dbPath: string, email: string) => {
   db.close();
 };
 
+export const addApprenticeRole = (dbPath: string, email: string) => {
+  const db = new Database(dbPath);
+  const user = db.prepare("SELECT id FROM users WHERE email = ?").get(email) as { id: string };
+  const role = db.prepare("SELECT id FROM roles WHERE name = 'APPRENTICE'").get() as { id: string };
+  db.prepare("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)").run(user.id, role.id);
+  db.close();
+};
+
 const userIdByEmail = (dbPath: string, email: string) => {
   const db = new Database(dbPath);
   const user = db.prepare("SELECT id FROM users WHERE email = ?").get(email) as { id: string };

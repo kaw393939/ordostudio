@@ -1,4 +1,5 @@
 import { MenuNav } from "@/components/navigation/menu-nav";
+import { MobileNavDrawer } from "@/components/navigation/mobile-nav-drawer";
 import { getMenuContext } from "@/lib/navigation/menu-audience";
 import Link from "next/link";
 
@@ -8,6 +9,7 @@ export default async function PublicLayout({
   children: React.ReactNode;
 }>) {
   const context = await getMenuContext();
+  const isLoggedIn = context.audience !== "guest";
 
   return (
     <>
@@ -17,10 +19,19 @@ export default async function PublicLayout({
             <Link href="/" className="motion-base shrink-0 type-label text-text-primary" aria-label="Studio Ordo home">
               Studio Ordo
             </Link>
+            <div className="flex items-center gap-3">
+              {isLoggedIn ? (
+                <div className="hidden items-center gap-3 type-label text-text-secondary md:flex">
+                  <Link href="/dashboard" className="motion-base hover:text-text-primary" prefetch>Dashboard</Link>
+                  <Link href="/logout" className="motion-base hover:text-text-primary" prefetch>Logout</Link>
+                </div>
+              ) : null}
+              <MobileNavDrawer context={context} />
+            </div>
           </div>
         </div>
 
-        <div className="container-grid py-2">
+        <div className="container-grid hidden py-2 md:block">
           <MenuNav
             menu="publicHeader"
             context={context}

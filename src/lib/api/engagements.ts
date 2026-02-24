@@ -1257,3 +1257,30 @@ LIMIT 25
     db.close();
   }
 };
+
+export const listAllMyFollowUpActions = (userId: string): EngagementFollowUpAction[] => {
+  const config = resolveConfig({ envVars: process.env });
+  const db = openCliDb(config);
+
+  try {
+    if (!hasTable(db, "engagement_action_items") || !hasTable(db, "engagement_sessions") || !hasTable(db, "event_registrations")) {
+      return [];
+    }
+
+    return db.prepare(`
+      SELECT ai.id, ai.session_id, s.title AS session_title, ai.description, ai.status, ai.due_at, ai.owner_user_id, ai.created_at, ai.updated_at
+      FROM engagement_action_items ai
+      JOIN engagement_sessions s ON s.id = ai.session_id
+      JOIN event_registrations er ON er.event_id = s.event_id
+      WHERE er.user_id = ?
+        AND (ai.owner_user_id IS NULL OR ai.owner_user_id = ?)
+      ORDER BY ai.status ASC, COALESCE(ai.due_at, ai.created_at) ASC
+    `).all(userId, userId) as EngagementFollowUpAction[];
+  } catch (error) {
+    console.error("Failed to list all follow-up actions:", error);
+    return [];
+  } finally {
+    db.close();
+  }
+};
+

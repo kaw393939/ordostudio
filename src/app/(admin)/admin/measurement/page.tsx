@@ -76,6 +76,7 @@ export default function AdminMeasurementPage() {
         <div className="grid gap-4 lg:grid-cols-2">
           <Card className="p-4">
             <h2 className="type-title">Totals (7d)</h2>
+            <div className="overflow-x-auto">
             <table className="mt-3 w-full border-collapse">
               <thead>
                 <tr>
@@ -85,9 +86,11 @@ export default function AdminMeasurementPage() {
               </thead>
               <tbody>{renderRows(seven.totals)}</tbody>
             </table>
+            </div>
 
             <h3 className="mt-6 type-label">Funnel</h3>
             <p className="mt-1 type-meta text-text-muted">{seven.funnel.label}</p>
+            <div className="overflow-x-auto">
             <table className="mt-3 w-full border-collapse">
               <tbody>
                 <tr>
@@ -104,8 +107,10 @@ export default function AdminMeasurementPage() {
                 </tr>
               </tbody>
             </table>
+            </div>
 
             <h3 className="mt-6 type-label">Top CTAs</h3>
+            <div className="overflow-x-auto">
             <table className="mt-3 w-full border-collapse">
               <thead>
                 <tr>
@@ -115,10 +120,12 @@ export default function AdminMeasurementPage() {
               </thead>
               <tbody>{renderRows(seven.topCtas)}</tbody>
             </table>
+            </div>
           </Card>
 
           <Card className="p-4">
             <h2 className="type-title">Totals (30d)</h2>
+            <div className="overflow-x-auto">
             <table className="mt-3 w-full border-collapse">
               <thead>
                 <tr>
@@ -128,9 +135,11 @@ export default function AdminMeasurementPage() {
               </thead>
               <tbody>{renderRows(thirty.totals)}</tbody>
             </table>
+            </div>
 
             <h3 className="mt-6 type-label">Funnel</h3>
             <p className="mt-1 type-meta text-text-muted">{thirty.funnel.label}</p>
+            <div className="overflow-x-auto">
             <table className="mt-3 w-full border-collapse">
               <tbody>
                 <tr>
@@ -147,8 +156,10 @@ export default function AdminMeasurementPage() {
                 </tr>
               </tbody>
             </table>
+            </div>
 
             <h3 className="mt-6 type-label">Top CTAs</h3>
+            <div className="overflow-x-auto">
             <table className="mt-3 w-full border-collapse">
               <thead>
                 <tr>
@@ -158,6 +169,7 @@ export default function AdminMeasurementPage() {
               </thead>
               <tbody>{renderRows(thirty.topCtas)}</tbody>
             </table>
+            </div>
           </Card>
         </div>
       ) : null}

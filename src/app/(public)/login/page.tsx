@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, Suspense } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { ProblemDetailsPanel } from "@/components/problem-details";
+import { LoadingState } from "@/components/patterns";
 import { follow, getRoot, requestHal, type HalResource, type ProblemDetails } from "@/lib/hal-client";
 import { loginSchema, type LoginFormValues } from "@/lib/auth-forms";
 import {
@@ -21,8 +22,11 @@ import { PasswordInput } from "@/components/forms/password-input";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { useSubmitState } from "@/components/forms/use-submit-state";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get("returnTo") || "/dashboard";
+
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
@@ -62,7 +66,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
+    router.push(returnTo);
   };
 
   const { state, handleSubmit: submitWithState } = useSubmitState(
@@ -70,7 +74,7 @@ export default function LoginPage() {
   );
 
   return (
-    <main id="main-content" tabIndex={-1} className="mx-auto max-w-md p-6">
+    <main id="main-content" className="mx-auto max-w-md p-6">
       {/* i18n: page title */}
       <h1 className="text-2xl font-semibold">Login</h1>
       {/* i18n: page subtitle */}
@@ -141,5 +145,13 @@ export default function LoginPage() {
         <Link className="underline" href="/terms">Terms</Link> · <Link className="underline" href="/privacy">Privacy</Link>
       </p>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoadingState title="Loading" description="Preparing login form." rows={2} />}>
+      <LoginForm />
+    </Suspense>
   );
 }

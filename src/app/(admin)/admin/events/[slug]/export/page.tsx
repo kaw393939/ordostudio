@@ -147,7 +147,7 @@ export default function AdminEventExportPage() {
   };
 
   return (
-    <main id="main-content" tabIndex={-1} className="container-grid py-6">
+    <main id="main-content" className="container-grid py-6">
       <Breadcrumbs
         items={[
           { label: "Admin", href: "/admin" },

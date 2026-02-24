@@ -124,7 +124,7 @@ describe("api/v1 intake", () => {
       }),
     );
 
-    expect(orgMissingTimeline.status).toBe(400);
+    expect(orgMissingTimeline.status).toBe(422);
 
     const individualMissingGoals = await postIntake(
       new Request("http://localhost:3000/api/v1/intake", {
@@ -141,7 +141,7 @@ describe("api/v1 intake", () => {
       }),
     );
 
-    expect(individualMissingGoals.status).toBe(400);
+    expect(individualMissingGoals.status).toBe(422);
 
     const validOrg = await postIntake(
       new Request("http://localhost:3000/api/v1/intake", {

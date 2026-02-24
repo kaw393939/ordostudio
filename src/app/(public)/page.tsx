@@ -37,7 +37,7 @@ const methodSteps = [
 
 export default function Home() {
   return (
-    <main id="main-content" tabIndex={-1} className="container-grid py-6">
+    <main id="main-content" className="container-grid py-6">
       <HomeHero />
 
       {/* Section 01 — The Human Edge */}

@@ -14,7 +14,7 @@ export default function GlobalErrorPage({
   console.error("Global error", error);
 
   return (
-    <main id="main-content" tabIndex={-1} className="container-grid py-6">
+    <main id="main-content" className="container-grid py-6">
       <Card className="p-6 text-center">
         <div className="mx-auto mb-3 inline-flex size-12 items-center justify-center rounded-sm border border-border-default bg-surface text-text-secondary">
           <AlertCircle className="size-5" />

@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ProblemDetailsPanel } from "@/components/problem-details";
 import { requestHal, type ProblemDetails } from "@/lib/hal-client";
 import { emitMeasurementEvent } from "@/lib/measurement-client";
+import { createIntakeSchema } from "@/lib/api/schemas";
 
 type ConsultRole = "CTO" | "ENG_MANAGER" | "ENGINEER" | "OTHER";
 type CompanySize = "SOLO" | "2_10" | "11_50" | "51_200" | "200_PLUS";
@@ -27,6 +28,8 @@ type FieldErrors = Partial<{
   contactName: string;
   contactEmail: string;
   goals: string;
+  organizationName: string;
+  timeline: string;
 }>;
 
 const packageLabels: Record<PackageTier, string> = {
@@ -79,15 +82,39 @@ export default function ServiceRequestPage() {
   }, [companySize]);
 
   const validate = (): FieldErrors => {
+    const payload = {
+      offer_slug: offerSlug || undefined,
+      audience: derivedAudience,
+      organization_name: derivedAudience === "ORGANIZATION" ? organizationName : undefined,
+      contact_name: contactName,
+      contact_email: contactEmail,
+      goals: [
+        `Role: ${role}`,
+        `Company size: ${companySize}`,
+        `Package: ${packageTier}`,
+        `AI adoption: ${aiAdoption}`,
+        participantCount ? `Participants: ${participantCount}` : "",
+        industry ? `Industry: ${industry}` : "",
+        goals,
+      ]
+        .filter((value) => value.trim().length > 0)
+        .join("\n"),
+      timeline: timeline.trim().length > 0 ? timeline : "ASAP",
+      constraints: "None",
+    };
+
+    const result = createIntakeSchema.safeParse(payload);
+    if (result.success) {
+      return {};
+    }
+
     const errors: FieldErrors = {};
-    if (contactName.trim().length === 0) {
-      errors.contactName = "Contact name is required.";
-    }
-    if (!/^\S+@\S+\.\S+$/.test(contactEmail.trim())) {
-      errors.contactEmail = "Enter a valid email address.";
-    }
-    if (goals.trim().length === 0) {
-      errors.goals = "Goals are required.";
+    for (const issue of result.error.issues) {
+      if (issue.path[0] === "contact_name") errors.contactName = issue.message;
+      if (issue.path[0] === "contact_email") errors.contactEmail = issue.message;
+      if (issue.path[0] === "goals") errors.goals = issue.message;
+      if (issue.path[0] === "organization_name") errors.organizationName = issue.message;
+      if (issue.path[0] === "timeline") errors.timeline = issue.message;
     }
     return errors;
   };
@@ -103,30 +130,33 @@ export default function ServiceRequestPage() {
     setProblem(null);
     setFieldErrors({});
 
+    const payload = {
+      offer_slug: offerSlug || undefined,
+      audience: derivedAudience,
+      organization_name: derivedAudience === "ORGANIZATION" ? organizationName : undefined,
+      contact_name: contactName,
+      contact_email: contactEmail,
+      goals: [
+        `Role: ${role}`,
+        `Company size: ${companySize}`,
+        `Package: ${packageTier}`,
+        `AI adoption: ${aiAdoption}`,
+        participantCount ? `Participants: ${participantCount}` : "",
+        industry ? `Industry: ${industry}` : "",
+        goals,
+      ]
+        .filter((value) => value.trim().length > 0)
+        .join("\n"),
+      timeline: timeline.trim().length > 0 ? timeline : "ASAP",
+      constraints: "None",
+    };
+
     const response = await requestHal<IntakeResponse>("/api/v1/intake", {
       method: "POST",
       headers: {
         "content-type": "application/json",
       },
-      body: JSON.stringify({
-        offer_slug: offerSlug || undefined,
-        audience: derivedAudience,
-        organization_name: derivedAudience === "ORGANIZATION" ? organizationName : undefined,
-        contact_name: contactName,
-        contact_email: contactEmail,
-        goals: [
-          `Role: ${role}`,
-          `Company size: ${companySize}`,
-          `Package: ${packageTier}`,
-          `AI adoption: ${aiAdoption}`,
-          participantCount ? `Participants: ${participantCount}` : "",
-          industry ? `Industry: ${industry}` : "",
-          goals,
-        ]
-          .filter((value) => value.trim().length > 0)
-          .join("\n"),
-        timeline: timeline.trim().length > 0 ? timeline : undefined,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -256,13 +286,23 @@ export default function ServiceRequestPage() {
           {derivedAudience === "ORGANIZATION" ? (
             <>
               <div className="space-y-1.5">
-                <Label htmlFor="request-org">Organization name <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Label htmlFor="request-org">Organization name</Label>
                 <Input
                   id="request-org"
                   placeholder="e.g., Acme Corp"
                   value={organizationName}
-                  onChange={(event) => setOrganizationName(event.target.value)}
+                  onChange={(event) => {
+                    setOrganizationName(event.target.value);
+                    setFieldErrors((prev) => ({ ...prev, organizationName: undefined }));
+                  }}
+                  aria-invalid={fieldErrors.organizationName ? true : undefined}
+                  aria-describedby={fieldErrors.organizationName ? "request-org-error" : undefined}
                 />
+                {fieldErrors.organizationName ? (
+                  <p id="request-org-error" className="type-meta text-state-danger">
+                    {fieldErrors.organizationName}
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="request-industry">Industry <span className="text-muted-foreground font-normal">(optional)</span></Label>
@@ -311,8 +351,23 @@ export default function ServiceRequestPage() {
         </div>
 
         <div className="mt-3 space-y-1.5">
-          <Label htmlFor="request-timeline">Timeline <span className="text-muted-foreground font-normal">(optional)</span></Label>
-          <Input id="request-timeline" placeholder="e.g., this quarter" value={timeline} onChange={(event) => setTimeline(event.target.value)} />
+          <Label htmlFor="request-timeline">Timeline {derivedAudience !== "ORGANIZATION" && <span className="text-muted-foreground font-normal">(optional)</span>}</Label>
+          <Input
+            id="request-timeline"
+            placeholder="e.g., this quarter"
+            value={timeline}
+            onChange={(event) => {
+              setTimeline(event.target.value);
+              setFieldErrors((prev) => ({ ...prev, timeline: undefined }));
+            }}
+            aria-invalid={fieldErrors.timeline ? true : undefined}
+            aria-describedby={fieldErrors.timeline ? "request-timeline-error" : undefined}
+          />
+          {fieldErrors.timeline ? (
+            <p id="request-timeline-error" className="type-meta text-state-danger">
+              {fieldErrors.timeline}
+            </p>
+          ) : null}
         </div>
 
         <Button intent="primary" className="mt-3" onClick={() => void onSubmit()} disabled={pending}>

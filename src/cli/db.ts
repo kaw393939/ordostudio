@@ -1125,6 +1125,23 @@ CREATE TABLE IF NOT EXISTS action_proposals (
 );
 `,
   },
+  {
+    name: "029_role_requests",
+    sql: `
+CREATE TABLE IF NOT EXISTS role_requests (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  requested_role_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  context TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (requested_role_id) REFERENCES roles(id) ON DELETE CASCADE,
+  CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED'))
+);
+`,
+  },
 ];
 
 const ensureMetaTable = (db: Database.Database): void => {
@@ -2161,7 +2178,7 @@ export const dbSeed = (config: AppConfig, requestId: string, fixture?: string): 
 
   const db = openDb(config);
   try {
-    const roleNames = ["USER", "ADMIN", "SUPER_ADMIN"];
+    const roleNames = ["USER", "ADMIN", "SUPER_ADMIN", "AFFILIATE", "APPRENTICE"];
 
     const run = db.transaction(() => {
       for (const roleName of roleNames) {

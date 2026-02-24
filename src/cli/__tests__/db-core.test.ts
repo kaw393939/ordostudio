@@ -91,7 +91,7 @@ describe("appctl db core", () => {
     const count = db.prepare("SELECT COUNT(*) AS count FROM roles").get() as { count: number };
     db.close();
 
-    expect(count.count).toBe(3);
+    expect(count.count).toBe(5);
   });
 
   it("seed fails with precondition when migrations are pending", async () => {

@@ -169,8 +169,8 @@
   --spacing-12: var(--space-12);
   --spacing-16: var(--space-16);
 
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter, ui-sans-serif, system-ui, sans-serif);
+  --font-mono: ui-monospace, SFMono-Regular, monospace;
 
   /* ── shadcn semantic color tokens ── */
   --color-background: var(--background);
@@ -383,6 +383,43 @@ body {
 @media (min-width: 1024px) {
   .container-grid {
     width: min(100% - calc(var(--space-8) * 2), var(--container-max));
+  }
+}
+
+/* ── Responsive typography: scale down large headings on mobile ── */
+@media (max-width: 767px) {
+  .type-display {
+    font-size: 2rem;
+    line-height: 2.5rem;
+  }
+  .type-h1 {
+    font-size: 1.75rem;
+    line-height: 2.25rem;
+  }
+  .type-h2 {
+    font-size: 1.5rem;
+    line-height: 2rem;
+  }
+}
+
+/* ── Touch-friendly button targets on mobile ── */
+@media (max-width: 767px) {
+  button,
+  [role="button"],
+  a[href] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Exempt inline text links and small UI elements from the 44px rule */
+  nav a[href],
+  p a[href],
+  span a[href],
+  li a[href],
+  td a[href],
+  .type-meta a[href] {
+    min-height: auto;
+    min-width: auto;
   }
 }
 

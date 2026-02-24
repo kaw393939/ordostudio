@@ -55,6 +55,7 @@ function SectionTable({
   return (
     <Card className="p-4">
       <h2 className="type-title">{title}</h2>
+      <div className="overflow-x-auto">
       <table className="mt-3 w-full border-collapse">
         <thead>
           <tr>
@@ -65,6 +66,7 @@ function SectionTable({
         </thead>
         <tbody>{children}</tbody>
       </table>
+      </div>
     </Card>
   );
 }

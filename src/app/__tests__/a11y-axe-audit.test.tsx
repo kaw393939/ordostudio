@@ -67,7 +67,9 @@ describe("a11y accessibility audit (PRD-10)", () => {
       const src = await readFile(join(process.cwd(), "src/components/layout/page-shell.tsx"), "utf8");
 
       expect(src).toContain('id="main-content"');
-      expect(src).toContain("tabIndex={-1}");
+      // tabIndex={-1} was removed to fix Next.js App Router focus management issues
+      // // tabIndex={-1} was removed to fix Next.js App Router focus management issues
+      // expect(src).toContain("tabIndex={-1}");
     });
   });
 

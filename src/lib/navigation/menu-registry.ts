@@ -69,9 +69,6 @@ const menus: Record<MenuName, readonly MenuItem[]> = {
     { id: "studio-report", label: "Submit report", href: "/studio/report", match: "exact", roles: ["APPRENTICE"], audience: ["user", "admin"] },
     { id: "book", label: "Book consult", href: "/services/request", match: "exact", includeInSitemap: true },
     { id: "login", label: "Login", href: "/login", match: "exact", audience: ["guest"] },
-    { id: "dashboard", label: "Dashboard", href: "/dashboard", match: "exact", audience: ["user", "admin"] },
-    { id: "account", label: "My account", href: "/account", match: "exact", audience: ["user", "admin"] },
-    { id: "logout", label: "Logout", href: "/logout", match: "exact", audience: ["user", "admin"] },
   ]),
   publicFooter: registerMenu("publicFooter", [
     { id: "apprentices", label: "Apprentices", href: "/apprentices", match: "prefix", includeInSitemap: true },
@@ -117,11 +114,15 @@ const menus: Record<MenuName, readonly MenuItem[]> = {
     { id: "admin-users", label: "Users", href: "/admin/users", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
     { id: "admin-settings", label: "Settings", href: "/admin/settings", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
     { id: "admin-audit", label: "Audit", href: "/admin/audit", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
+    { id: "admin-telemetry", label: "Telemetry", href: "/admin/telemetry", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
+    { id: "admin-agent-ops", label: "Agent Ops", href: "/admin/agent-ops", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
   ]),
   userAccount: registerMenu("userAccount", [
     { id: "dashboard", label: "Dashboard", href: "/dashboard", match: "exact", audience: ["user", "admin"] },
     { id: "profile", label: "Profile", href: "/account", match: "exact", audience: ["user", "admin"] },
     { id: "apprentice-profile", label: "Apprentice Profile", href: "/dashboard/apprentice-profile", match: "exact", audience: ["user", "admin"], roles: ["APPRENTICE"] },
+    { id: "billing", label: "Billing", href: "/settings/billing", match: "prefix", audience: ["user", "admin"] },
+    { id: "logout", label: "Logout", href: "/logout", match: "exact", audience: ["user", "admin"] },
   ]),
 };
 
