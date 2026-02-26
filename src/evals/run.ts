@@ -58,6 +58,7 @@ import { prospectScenarios } from "./scenarios/prospect";
 import { eventScenarios } from "./scenarios/events";
 import { membershipScenarios } from "./scenarios/membership";
 import { affiliateScenarios } from "./scenarios/affiliate";
+import { intelScenarios } from "./scenarios/intel";
 import type { EvalScenario, EvalReport } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -219,6 +220,7 @@ Environment:
     ...eventScenarios,
     ...membershipScenarios,
     ...affiliateScenarios,
+    ...intelScenarios,
   ];
 
   // Apply filters

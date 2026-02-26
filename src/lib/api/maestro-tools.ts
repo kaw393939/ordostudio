@@ -81,6 +81,96 @@ ORDER BY count DESC
   return { period_days: days, activity: rows };
 }
 
+function _getContentSearchAnalytics(
+  db: Db,
+  days: number,
+  limit: number,
+): {
+  period: string;
+  totalSearches: number;
+  topQueries: Array<{
+    query: string;
+    total: number;
+    avgResults: number;
+    zeroHitCount: number;
+  }>;
+  zeroResultQueries: Array<{ query: string; occurrences: number }>;
+} {
+  try {
+    const since = new Date(Date.now() - days * 86_400_000).toISOString();
+
+    const totalRow = db
+      .prepare(
+        "SELECT COUNT(*) AS n FROM search_analytics WHERE created_at >= ?",
+      )
+      .get(since) as { n: number };
+
+    if (!totalRow || totalRow.n === 0) {
+      return {
+        period: `last ${days} days`,
+        totalSearches: 0,
+        topQueries: [],
+        zeroResultQueries: [],
+      };
+    }
+
+    const topRows = db
+      .prepare(
+        `
+SELECT
+  query,
+  COUNT(*) AS total,
+  AVG(result_count) AS avg_results,
+  SUM(CASE WHEN result_count = 0 THEN 1 ELSE 0 END) AS zero_hits
+FROM search_analytics
+WHERE created_at >= ?
+GROUP BY query
+ORDER BY total DESC
+LIMIT ?
+`,
+      )
+      .all(since, limit) as Array<{
+      query: string;
+      total: number;
+      avg_results: number;
+      zero_hits: number;
+    }>;
+
+    const zeroRows = db
+      .prepare(
+        `
+SELECT query, COUNT(*) AS occurrences
+FROM search_analytics
+WHERE result_count = 0
+  AND created_at >= ?
+GROUP BY query
+ORDER BY occurrences DESC
+LIMIT 10
+`,
+      )
+      .all(since) as Array<{ query: string; occurrences: number }>;
+
+    return {
+      period: `last ${days} days`,
+      totalSearches: totalRow.n,
+      topQueries: topRows.map((r) => ({
+        query: r.query,
+        total: r.total,
+        avgResults: Math.round(r.avg_results * 10) / 10,
+        zeroHitCount: r.zero_hits,
+      })),
+      zeroResultQueries: zeroRows,
+    };
+  } catch {
+    return {
+      period: `last ${days} days`,
+      totalSearches: 0,
+      topQueries: [],
+      zeroResultQueries: [],
+    };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // MAESTRO_TOOLS — Anthropic-compatible tool definitions
 // ---------------------------------------------------------------------------
@@ -770,6 +860,46 @@ export const MAESTRO_TOOLS: AgentToolDefinition[] = [
       },
     },
   },
+
+  // ---- Group J: Intelligence & KPIs (Maestro-03) ---------------------------
+  {
+    type: "function",
+    function: {
+      name: "get_content_search_analytics",
+      description:
+        "Return aggregated search behaviour: top queries, zero-result queries, and total volume for a rolling window.",
+      parameters: {
+        type: "object",
+        properties: {
+          days: {
+            type: "number",
+            description: "Rolling window in days (default 30)",
+          },
+          limit: {
+            type: "number",
+            description: "Max number of top queries to return (1–50, default 10)",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_ops_brief",
+      description:
+        "Synthesise a single-call executive ops summary covering revenue, recent activity, and search analytics. The agent should quote the markdownSummary directly without paraphrasing.",
+      parameters: {
+        type: "object",
+        properties: {
+          days: {
+            type: "number",
+            description: "Rolling window passed to all sub-reports (default 30)",
+          },
+        },
+      },
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -960,6 +1090,16 @@ const listPendingCommissionsSchema = z.object({
 const voidCommissionSchema = z.object({
   commissionId: z.string().min(1),
   reason: z.string().min(5).max(300),
+});
+
+// Intelligence & KPIs schemas (Group J)
+const getContentSearchAnalyticsSchema = z.object({
+  days: z.number().int().positive().max(365).default(30),
+  limit: z.number().int().min(1).max(50).default(10),
+});
+
+const getOpsBriefSchema = z.object({
+  days: z.number().int().positive().max(365).default(30),
 });
 
 // ---------------------------------------------------------------------------
@@ -2151,6 +2291,70 @@ WHERE rr.id = ?
         ).run(now, commissionId);
 
         return { success: true, commissionId, reason, voidedAt: now };
+      }
+
+      // Group J — Intelligence & KPIs (Maestro-03)
+      case "get_content_search_analytics": {
+        const { days, limit } = getContentSearchAnalyticsSchema.parse(args);
+        return _getContentSearchAnalytics(db, days, limit);
+      }
+
+      case "get_ops_brief": {
+        const { days } = getOpsBriefSchema.parse(args);
+
+        let revenue: Record<string, unknown> = {};
+        let activity: Record<string, unknown> = {};
+        let searchStats: ReturnType<typeof _getContentSearchAnalytics> | null =
+          null;
+
+        try {
+          revenue = _getRevenueSummary(db, days);
+        } catch {
+          revenue = { error: "data unavailable" };
+        }
+        try {
+          activity = _getRecentActivity(db, days);
+        } catch {
+          activity = { error: "data unavailable" };
+        }
+        try {
+          searchStats = _getContentSearchAnalytics(db, days, 5);
+        } catch {
+          searchStats = null;
+        }
+
+        const netRevDollars =
+          typeof revenue.net_revenue_cents === "number"
+            ? (revenue.net_revenue_cents / 100).toFixed(2)
+            : "N/A";
+        const dealCount =
+          typeof revenue.deal_count === "number" ? revenue.deal_count : "?";
+        const activityRows = Array.isArray(
+          (activity as { activity?: unknown }).activity,
+        )
+          ? (activity as { activity: Array<{ type: string; count: number }> })
+              .activity
+          : [];
+        const topEvent =
+          activityRows.length > 0
+            ? `${activityRows[0].count}× ${activityRows[0].type}`
+            : "none";
+        const searchLine =
+          searchStats && searchStats.totalSearches > 0
+            ? `${searchStats.totalSearches} searches; top query: "${searchStats.topQueries[0]?.query ?? "none"}"`
+            : "no searches recorded";
+
+        const markdownSummary =
+          `## Ops Brief (last ${days} days)\n\n` +
+          `**Revenue**: $${netRevDollars} net, ${dealCount} deals\n` +
+          `**Activity**: top event — ${topEvent}\n` +
+          `**Search**: ${searchLine}`;
+
+        return {
+          markdownSummary,
+          generatedAt: new Date().toISOString(),
+          period: `last ${days} days`,
+        };
       }
 
       default:
