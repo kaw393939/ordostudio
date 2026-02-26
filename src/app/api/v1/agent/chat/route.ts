@@ -13,7 +13,6 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest } from "next/server";
-import type OpenAI from "openai";
 import { runOpenAIAgentLoopStream } from "@/lib/llm-openai";
 import { openCliDb } from "@/platform/runtime";
 import { resolveConfig } from "@/platform/config";
@@ -31,6 +30,7 @@ import {
 } from "@/lib/api/conversation-store";
 import { checkRateLimit } from "@/lib/api/rate-limiter";
 import { buildAnthropicContentBlocks } from "@/lib/api/attachment-builder";
+import { toOAIMessages } from "@/lib/api/message-adapters";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -222,6 +222,96 @@ async function handleChatPost(
 }
 
 // ---------------------------------------------------------------------------
+// Shared streaming core — R-12
+// ---------------------------------------------------------------------------
+
+/**
+ * A function that runs an agent loop and returns `{ capturedValues }`.
+ * Receives injected SSE callbacks so it can fire events into the stream.
+ */
+type AgentLoopFn = (callbacks: {
+  onDelta: (text: string) => void;
+  onToolCall: (name: string, args: Record<string, unknown>) => void;
+  onToolResult: (name: string, result: unknown) => void;
+}) => Promise<{ capturedValues: Record<string, unknown> }>;
+
+/**
+ * Build a streaming SSE Response that runs an agent loop.
+ *
+ * This is the single implementation of the streaming SSE protocol.
+ * Both the Claude and OpenAI paths delegate here — the only difference
+ * between them is the `runLoop` function they supply.
+ *
+ * DB ownership: db.close() is called in the finally block.
+ * Error handling: the original error is preserved and logged (not swallowed).
+ * Done frame: includes booking_id and booking_confirmed in addition to
+ *             intake_submitted so the client knows about both milestones.
+ */
+function buildStreamingResponse(params: {
+  db: ReturnType<typeof openCliDb>;
+  conversation: ConversationRow;
+  messages: ConversationMessage[];
+  runLoop: AgentLoopFn;
+}): Response {
+  const { db, conversation, messages } = params;
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let assistantText = "";
+      try {
+        const result = await params.runLoop({
+          onDelta(text) {
+            assistantText += text;
+            controller.enqueue(encoder.encode(sseChunk({ delta: text })));
+          },
+          onToolCall(name, args) {
+            controller.enqueue(encoder.encode(sseChunk({ tool_call: { name, args } })));
+          },
+          onToolResult(name, result) {
+            controller.enqueue(encoder.encode(sseChunk({ tool_result: { name, result } })));
+          },
+        });
+
+        const intakeRequestId =
+          typeof result.capturedValues.intake_request_id === "string"
+            ? result.capturedValues.intake_request_id
+            : (conversation.intake_request_id ?? null);
+
+        persistAssistantMessage(db, conversation, messages, assistantText, intakeRequestId);
+
+        controller.enqueue(
+          encoder.encode(
+            sseChunk({
+              done: true,
+              conversation_id: conversation.id,
+              intake_submitted: intakeRequestId !== null,
+              booking_confirmed: typeof result.capturedValues.booking_id === "string",
+              booking_id: result.capturedValues.booking_id ?? null,
+            }),
+          ),
+        );
+        controller.close();
+      } catch (err) {
+        console.error("[ChatStream] stream error:", err);
+        controller.error(err instanceof Error ? err : new Error(String(err)));
+      } finally {
+        db.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Conversation-Id": conversation.id,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Claude: true token streaming
 // ---------------------------------------------------------------------------
 
@@ -234,87 +324,28 @@ function buildClaudeStreamingResponse(params: {
   systemPrompt: string;
   anthropicKey: string;
 }): Response {
-  const { db, conversation, messages } = params;
-  const encoder = new TextEncoder();
-
-  const priorTextMessages = messages
+  const priorTextMessages = params.messages
     .slice(0, -1)
     .filter((m) => m.role !== "tool")
     .map((m) => ({ role: m.role as "user" | "assistant", text: m.content }));
 
-  const responseStream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      let assistantText = "";
-
-      try {
-        const streamResult = await runClaudeAgentLoopStream({
-          apiKey: params.anthropicKey,
-          systemPrompt: params.systemPrompt,
-          history: priorTextMessages,
-          userMessage: params.userMessage,
-          userContentBlocks:
-            params.userContentBlocks.length > 0
-              ? params.userContentBlocks
-              : undefined,
-          tools: AGENT_TOOL_DEFINITIONS,
-          executeToolFn: async (name, args) => executeAgentTool(name, args, db),
-          maxToolRounds: MAX_TOOL_ROUNDS,
-          callbacks: {
-            onDelta(text) {
-              assistantText += text;
-              controller.enqueue(encoder.encode(sseChunk({ delta: text })));
-            },
-            onToolCall(name, args) {
-              controller.enqueue(
-                encoder.encode(sseChunk({ tool_call: { name, args } })),
-              );
-            },
-            onToolResult(name, result) {
-              controller.enqueue(
-                encoder.encode(sseChunk({ tool_result: { name, result } })),
-              );
-            },
-          },
-        });
-
-        const intakeRequestId =
-          typeof streamResult.capturedValues.intake_request_id === "string"
-            ? streamResult.capturedValues.intake_request_id
-            : (conversation.intake_request_id ?? null);
-
-        persistAssistantMessage(
-          db,
-          conversation,
-          messages,
-          assistantText,
-          intakeRequestId,
-        );
-
-        controller.enqueue(
-          encoder.encode(
-            sseChunk({
-              done: true,
-              conversation_id: conversation.id,
-              intake_submitted: intakeRequestId !== null,
-            }),
-          ),
-        );
-        controller.close();
-      } catch {
-        controller.error(new Error("stream failed"));
-      } finally {
-        db.close();
-      }
-    },
-  });
-
-  return new Response(responseStream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-      "X-Conversation-Id": conversation.id,
-    },
+  return buildStreamingResponse({
+    db: params.db,
+    conversation: params.conversation,
+    messages: params.messages,
+    runLoop: (callbacks) =>
+      runClaudeAgentLoopStream({
+        apiKey: params.anthropicKey,
+        systemPrompt: params.systemPrompt,
+        history: priorTextMessages,
+        userMessage: params.userMessage,
+        userContentBlocks:
+          params.userContentBlocks.length > 0 ? params.userContentBlocks : undefined,
+        tools: AGENT_TOOL_DEFINITIONS,
+        executeToolFn: async (name, args) => executeAgentTool(name, args, params.db),
+        maxToolRounds: MAX_TOOL_ROUNDS,
+        callbacks,
+      }),
   });
 }
 
@@ -328,84 +359,20 @@ function buildOAIStreamingResponse(params: {
   messages: ConversationMessage[];
   systemPrompt: string;
 }): Response {
-  const { db, conversation } = params;
-  const encoder = new TextEncoder();
+  const oaiMessages = toOAIMessages(params.messages);
 
-  const oaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = params.messages.map((m) => {
-    if (m.role === "tool") {
-      return { role: "tool" as const, content: m.content, tool_call_id: m.tool_call_id ?? "" };
-    }
-    if (m.role === "assistant") {
-      return { role: "assistant" as const, content: m.content };
-    }
-    return { role: "user" as const, content: m.content };
-  });
-
-  const responseStream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      let assistantText = "";
-      try {
-        const streamResult = await runOpenAIAgentLoopStream({
-          systemPrompt: params.systemPrompt,
-          messages: oaiMessages,
-          tools: AGENT_TOOL_DEFINITIONS,
-          executeToolFn: async (name, args) => executeAgentTool(name, args, db),
-          maxToolRounds: MAX_TOOL_ROUNDS,
-          callbacks: {
-            onDelta(text) {
-              assistantText += text;
-              controller.enqueue(encoder.encode(sseChunk({ delta: text })));
-            },
-            onToolCall(name, args) {
-              controller.enqueue(
-                encoder.encode(sseChunk({ tool_call: { name, args } })),
-              );
-            },
-            onToolResult(name, result) {
-              controller.enqueue(
-                encoder.encode(sseChunk({ tool_result: { name, result } })),
-              );
-            },
-          },
-        });
-
-        const intakeRequestId =
-          typeof streamResult.capturedValues.intake_request_id === "string"
-            ? streamResult.capturedValues.intake_request_id
-            : (conversation.intake_request_id ?? null);
-
-        persistAssistantMessage(
-          db,
-          conversation,
-          params.messages,
-          assistantText,
-          intakeRequestId,
-        );
-
-        controller.enqueue(
-          encoder.encode(
-            sseChunk({
-              done: true,
-              conversation_id: conversation.id,
-              intake_submitted: intakeRequestId !== null,
-            }),
-          ),
-        );
-        controller.close();
-      } catch {
-        controller.error(new Error("stream failed"));
-      } finally {
-        db.close();
-      }
-    },
-  });
-
-  return new Response(responseStream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-      "X-Conversation-Id": conversation.id,
-    },
+  return buildStreamingResponse({
+    db: params.db,
+    conversation: params.conversation,
+    messages: params.messages,
+    runLoop: (callbacks) =>
+      runOpenAIAgentLoopStream({
+        systemPrompt: params.systemPrompt,
+        messages: oaiMessages,
+        tools: AGENT_TOOL_DEFINITIONS,
+        executeToolFn: async (name, args) => executeAgentTool(name, args, params.db),
+        maxToolRounds: MAX_TOOL_ROUNDS,
+        callbacks,
+      }),
   });
 }
