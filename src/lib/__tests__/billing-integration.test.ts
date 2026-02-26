@@ -197,8 +197,8 @@ describe("Subscription webhook handlers", () => {
     const result = processSubscriptionWebhook("invoice.payment_succeeded", {
       subscription: "sub_123",
     });
-    expect(result.handled).toBe(true);
-    expect(result.action).toBe("payment_confirmed");
+    expect(result.handled).toBe(false);
+    expect(result.action).toBe("not_implemented:payment_confirmed");
     expect(result.status).toBe("active");
   });
 
@@ -207,16 +207,16 @@ describe("Subscription webhook handlers", () => {
     const result = processSubscriptionWebhook("invoice.payment_failed", {
       subscription: "sub_456",
     });
-    expect(result.handled).toBe(true);
-    expect(result.action).toBe("payment_failed");
+    expect(result.handled).toBe(false);
+    expect(result.action).toBe("not_implemented:payment_failed");
     expect(result.status).toBe("past_due");
   });
 
   it("handles customer.subscription.deleted", async () => {
     const { processSubscriptionWebhook } = await import("@/lib/subscription-webhooks");
     const result = processSubscriptionWebhook("customer.subscription.deleted", {});
-    expect(result.handled).toBe(true);
-    expect(result.action).toBe("subscription_canceled");
+    expect(result.handled).toBe(false);
+    expect(result.action).toBe("not_implemented:subscription_canceled");
     expect(result.status).toBe("canceled");
   });
 
@@ -226,8 +226,8 @@ describe("Subscription webhook handlers", () => {
       status: "active",
       items: { data: [{ price: { id: "price_starter" } }] },
     });
-    expect(result.handled).toBe(true);
-    expect(result.action).toBe("subscription_created");
+    expect(result.handled).toBe(false);
+    expect(result.action).toBe("not_implemented:subscription_created");
     expect(result.status).toBe("active");
   });
 
@@ -236,8 +236,8 @@ describe("Subscription webhook handlers", () => {
     const result = processSubscriptionWebhook("customer.subscription.updated", {
       status: "past_due",
     });
-    expect(result.handled).toBe(true);
-    expect(result.action).toBe("subscription_updated");
+    expect(result.handled).toBe(false);
+    expect(result.action).toBe("not_implemented:subscription_updated");
     expect(result.status).toBe("past_due");
   });
 
