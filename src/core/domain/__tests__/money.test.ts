@@ -5,6 +5,10 @@
  */
 import { describe, it, expect } from "vitest";
 import { Money } from "@/core/domain/money";
+import {
+  AFFILIATE_COMMISSION_RATE,
+  PROVIDER_PAYOUT_RATE,
+} from "@/lib/constants/commissions";
 
 describe("Money — construction", () => {
   it("creates a valid Money from positive cents", () => {
@@ -120,6 +124,45 @@ describe("Money — comparison", () => {
   it("isPositive returns false for 0", () => {
     expect(Money.zero("USD").isPositive()).toBe(false);
   });
+
+  it("greaterThan returns true when left > right", () => {
+    expect(Money.cents(200, "USD").greaterThan(Money.cents(100, "USD"))).toBe(true);
+  });
+
+  it("greaterThan returns false when equal", () => {
+    expect(Money.cents(100, "USD").greaterThan(Money.cents(100, "USD"))).toBe(false);
+  });
+
+  it("lessThan returns true when left < right", () => {
+    expect(Money.cents(50, "USD").lessThan(Money.cents(100, "USD"))).toBe(true);
+  });
+
+  it("lessThan returns false when equal", () => {
+    expect(Money.cents(100, "USD").lessThan(Money.cents(100, "USD"))).toBe(false);
+  });
+
+  it("greaterThanOrEqual returns true when equal", () => {
+    expect(Money.cents(100, "USD").greaterThanOrEqual(Money.cents(100, "USD"))).toBe(true);
+  });
+
+  it("greaterThanOrEqual returns true when greater", () => {
+    expect(Money.cents(101, "USD").greaterThanOrEqual(Money.cents(100, "USD"))).toBe(true);
+  });
+
+  it("lessThanOrEqual returns true when equal", () => {
+    expect(Money.cents(100, "USD").lessThanOrEqual(Money.cents(100, "USD"))).toBe(true);
+  });
+
+  it("lessThanOrEqual returns true when less", () => {
+    expect(Money.cents(99, "USD").lessThanOrEqual(Money.cents(100, "USD"))).toBe(true);
+  });
+
+  it("comparison throws on currency mismatch", () => {
+    expect(() => Money.cents(100, "USD").greaterThan(Money.cents(100, "EUR"))).toThrow("currency");
+    expect(() => Money.cents(100, "USD").lessThan(Money.cents(100, "EUR"))).toThrow("currency");
+    expect(() => Money.cents(100, "USD").greaterThanOrEqual(Money.cents(100, "EUR"))).toThrow("currency");
+    expect(() => Money.cents(100, "USD").lessThanOrEqual(Money.cents(100, "EUR"))).toThrow("currency");
+  });
 });
 
 describe("Money — display", () => {
@@ -142,4 +185,23 @@ describe("Money — display", () => {
   it("toString handles unknown currency", () => {
     expect(Money.cents(100, "JPY").toString()).toBe("JPY 1.00");
   });
+});
+
+describe("Money — 3-way commission split invariant (FIN-04)", () => {
+  // machine-checked: provider + referrer + platform must always equal gross
+  // for every gross amount, regardless of floor rounding.
+  const grossAmounts = [1, 99, 100, 333, 999, 1000, 10000, 99999, 1000000];
+
+  it.each(grossAmounts)(
+    "gross=%i cents: provider + referrer + platform === gross",
+    (grossCents) => {
+      const gross = Money.cents(grossCents, "USD");
+      const referrer = gross.multiplyRate(AFFILIATE_COMMISSION_RATE);
+      const provider = gross.multiplyRate(PROVIDER_PAYOUT_RATE);
+      const platform = gross.subtract(referrer).subtract(provider);
+      expect(
+        referrer.amountCents + provider.amountCents + platform.amountCents,
+      ).toBe(gross.amountCents);
+    },
+  );
 });

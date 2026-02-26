@@ -75,6 +75,26 @@ export class Money {
     return this.amountCents === other.amountCents && this.currency === other.currency;
   }
 
+  greaterThan(other: Money): boolean {
+    assertSameCurrency(this, other);
+    return this.amountCents > other.amountCents;
+  }
+
+  lessThan(other: Money): boolean {
+    assertSameCurrency(this, other);
+    return this.amountCents < other.amountCents;
+  }
+
+  greaterThanOrEqual(other: Money): boolean {
+    assertSameCurrency(this, other);
+    return this.amountCents >= other.amountCents;
+  }
+
+  lessThanOrEqual(other: Money): boolean {
+    assertSameCurrency(this, other);
+    return this.amountCents <= other.amountCents;
+  }
+
   isZero(): boolean {
     return this.amountCents === 0;
   }
