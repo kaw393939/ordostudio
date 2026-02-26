@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   LayoutDashboard,
+  MessageSquare,
   Users,
   ClipboardList,
   ListChecks,
@@ -52,6 +53,8 @@ const iconForAdminMenuItem = (item: MenuItem) => {
       return Users;
     case "admin-settings":
       return Settings;
+    case "admin-chat":
+      return MessageSquare;
     default:
       return LayoutDashboard;
   }

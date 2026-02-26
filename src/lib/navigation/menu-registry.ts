@@ -89,6 +89,7 @@ const menus: Record<MenuName, readonly MenuItem[]> = {
     { id: "admin-crm", label: "CRM", href: "/admin/crm", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
     { id: "admin-events", label: "Events", href: "/admin/events", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
     { id: "admin-ledger", label: "Ledger", href: "/admin/ledger", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN"] },
+    { id: "admin-chat", label: "Chat", href: "/admin/chat", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
   ]),
   adminPrimary: registerMenu("adminPrimary", [
     { id: "admin-home", label: "Admin Console", href: "/admin", match: "exact", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
@@ -120,6 +121,7 @@ const menus: Record<MenuName, readonly MenuItem[]> = {
     { id: "admin-audit", label: "Audit", href: "/admin/audit", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
     { id: "admin-telemetry", label: "Telemetry", href: "/admin/telemetry", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
     { id: "admin-agent-ops", label: "Agent Ops", href: "/admin/agent-ops", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
+    { id: "admin-chat", label: "Chat", href: "/admin/chat", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
   ]),
   userAccount: registerMenu("userAccount", [
     { id: "dashboard", label: "Dashboard", href: "/dashboard", match: "exact", audience: ["user", "admin"] },

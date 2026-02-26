@@ -109,6 +109,19 @@ export type EvalScenario =
        */
       preSetup?: (db: Database.Database) => Promise<void>;
       dbAssertions?: DbAssertion[];
+    }
+  | {
+      id: string;
+      name: string;
+      type: "maestro";
+      description: string;
+      /**
+       * Seed data before the scenario starts.
+       * adminId is the eval DB's admin user ID for FK constraints.
+       */
+      preSetup?: (db: Database.Database, adminId: string) => void;
+      turns: AgentTurn[];
+      dbAssertions?: DbAssertion[];
     };
 
 // ---------------------------------------------------------------------------

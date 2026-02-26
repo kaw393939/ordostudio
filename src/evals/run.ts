@@ -51,6 +51,7 @@ import { intakeAgentScenarios } from "./scenarios/intake-agent";
 import { triageScenarios } from "./scenarios/triage";
 import { workflowScenarios } from "./scenarios/workflow";
 import { contentRetrievalScenarios } from "./scenarios/content-retrieval";
+import { maestroScenarios } from "./scenarios/maestro";
 import type { EvalScenario, EvalReport } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -205,6 +206,7 @@ Environment:
     ...triageScenarios,
     ...workflowScenarios,
     ...(openaiKey ? contentRetrievalScenarios : []),
+    ...maestroScenarios,
   ];
 
   // Apply filters

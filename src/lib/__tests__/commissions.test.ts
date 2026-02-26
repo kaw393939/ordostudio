@@ -8,8 +8,8 @@ import {
 } from "@/lib/constants/commissions";
 
 describe("Commission rate constants (FIN-02)", () => {
-  it("AFFILIATE_COMMISSION_RATE is 0.20", () => {
-    expect(AFFILIATE_COMMISSION_RATE).toBe(0.20);
+  it("AFFILIATE_COMMISSION_RATE is 0.04 (4% of gross deal = 20% of the platform fee)", () => {
+    expect(AFFILIATE_COMMISSION_RATE).toBe(0.04);
   });
 
   it("PROVIDER_PAYOUT_RATE is 0.60", () => {

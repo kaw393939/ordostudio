@@ -29,11 +29,11 @@ describe("e2e commission math and attribution", () => {
     await cleanupStandardE2EFixtures();
   });
 
-  it("Test 1: AFFILIATE_COMMISSION_RATE constant is 0.20", () => {
-    expect(AFFILIATE_COMMISSION_RATE).toBe(0.20);
+  it("Test 1: AFFILIATE_COMMISSION_RATE constant is 0.04", () => {
+    expect(AFFILIATE_COMMISSION_RATE).toBe(0.04);
   });
 
-  it("Test 2: admin report calculates commission at 20%", () => {
+  it("Test 2: admin report calculates commission at 4%", () => {
     // Directly insert referral code, intake, proposal, conversion into the DB
     const db = new Database(fixture.dbPath);
     const now = new Date().toISOString();
@@ -83,8 +83,8 @@ describe("e2e commission math and attribution", () => {
     const report = getReferralAdminReport();
     const userRow = report.items.find((r) => r.user_id === fixture.userId);
     expect(userRow).toBeTruthy();
-    // $10,000 at 20% = $2,000 = 200,000 cents
-    expect(userRow!.commission_owed_cents).toBe(200000);
+    // $10,000 at 4% = $400 = 40,000 cents
+    expect(userRow!.commission_owed_cents).toBe(40000);
   });
 
   it("Test 3: referral code pre-exists immediately after registration", async () => {

@@ -1,0 +1,732 @@
+/**
+ * maestro-tools.ts — Ops Agent Tool Registry
+ *
+ * 10 admin-only tools across 4 groups:
+ *   A. Queue      — get_intake_queue, get_intake_detail, update_intake_status
+ *   B. Approvals  — list_role_requests, approve_role_request, reject_role_request
+ *   C. KPI        — get_revenue_summary, get_recent_activity
+ *   D. Operations — get_ops_summary, get_audit_log
+ *
+ * All tools take an already-open `db` so callers control the DB lifecycle and
+ * write tools can share a transaction with the surrounding request.
+ */
+
+import { randomUUID } from "node:crypto";
+import Database from "better-sqlite3";
+import { z } from "zod";
+import { writeFeedEvent } from "./feed-events";
+import type { AgentToolDefinition } from "./agent-tools";
+
+type Db = Database.Database;
+
+// ---------------------------------------------------------------------------
+// Internal KPI helpers (reused by get_ops_summary)
+// ---------------------------------------------------------------------------
+
+function _getRevenueSummary(db: Db, days: number) {
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  const row = db
+    .prepare(
+      `
+SELECT
+  COALESCE(SUM(CASE WHEN entry_type = 'PLATFORM_REVENUE'    AND status != 'VOID' THEN amount_cents ELSE 0 END), 0) AS platform_revenue,
+  COALESCE(SUM(CASE WHEN entry_type = 'REFERRER_COMMISSION' AND status != 'VOID' THEN amount_cents ELSE 0 END), 0) AS referrer_commissions,
+  COALESCE(SUM(CASE WHEN entry_type = 'PROVIDER_PAYOUT'     AND status != 'VOID' THEN amount_cents ELSE 0 END), 0) AS provider_payouts,
+  COUNT(DISTINCT deal_id) AS deal_count,
+  COUNT(*)                AS entry_count
+FROM ledger_entries
+WHERE earned_at >= ?
+`,
+    )
+    .get(since) as
+    | {
+        platform_revenue: number;
+        referrer_commissions: number;
+        provider_payouts: number;
+        deal_count: number;
+        entry_count: number;
+      }
+    | undefined;
+
+  const pr = row?.platform_revenue ?? 0;
+  const rc = row?.referrer_commissions ?? 0;
+  const pp = row?.provider_payouts ?? 0;
+
+  return {
+    period_days: days,
+    platform_revenue_cents: pr,
+    referrer_commissions_cents: rc,
+    provider_payouts_cents: pp,
+    net_revenue_cents: pr - rc,
+    gross_revenue_cents: pr + rc + pp,
+    deal_count: row?.deal_count ?? 0,
+    entry_count: row?.entry_count ?? 0,
+  };
+}
+
+function _getRecentActivity(db: Db, days: number) {
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  const rows = db
+    .prepare(
+      `
+SELECT type, COUNT(*) AS count, MAX(created_at) AS last_at
+FROM feed_events
+WHERE created_at >= ?
+GROUP BY type
+ORDER BY count DESC
+`,
+    )
+    .all(since) as Array<{ type: string; count: number; last_at: string }>;
+
+  return { period_days: days, activity: rows };
+}
+
+// ---------------------------------------------------------------------------
+// MAESTRO_TOOLS — Anthropic-compatible tool definitions
+// ---------------------------------------------------------------------------
+
+export const MAESTRO_TOOLS: AgentToolDefinition[] = [
+  // ---- Group A: Queue --------------------------------------------------
+  {
+    type: "function",
+    function: {
+      name: "get_intake_queue",
+      description:
+        "List intake requests in the ops queue. Use this to see what prospects are waiting for follow-up.",
+      parameters: {
+        type: "object",
+        properties: {
+          status: {
+            type: "array",
+            items: {
+              type: "string",
+              enum: ["NEW", "TRIAGED", "QUALIFIED", "BOOKED", "LOST"],
+            },
+            description:
+              "Filter by one or more statuses. Omit to return all statuses.",
+          },
+          limit: {
+            type: "number",
+            description: "Max rows to return (1–100, default 20).",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_intake_detail",
+      description:
+        "Get full detail for a single intake request including status history and triage ticket.",
+      parameters: {
+        type: "object",
+        properties: {
+          intake_id: {
+            type: "string",
+            description: "The UUID of the intake request.",
+          },
+        },
+        required: ["intake_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_intake_status",
+      description:
+        "Advance or change the status of an intake request. Optionally add a note explaining the change.",
+      parameters: {
+        type: "object",
+        properties: {
+          intake_id: {
+            type: "string",
+            description: "The UUID of the intake request.",
+          },
+          new_status: {
+            type: "string",
+            enum: ["TRIAGED", "QUALIFIED", "BOOKED", "LOST"],
+            description: "The new status to assign.",
+          },
+          note: {
+            type: "string",
+            description:
+              "Optional note explaining the status change (max 500 chars).",
+          },
+        },
+        required: ["intake_id", "new_status"],
+      },
+    },
+  },
+
+  // ---- Group B: Role Approvals -----------------------------------------
+  {
+    type: "function",
+    function: {
+      name: "list_role_requests",
+      description: "List user role requests filtered by status.",
+      parameters: {
+        type: "object",
+        properties: {
+          status: {
+            type: "string",
+            enum: ["PENDING", "APPROVED", "REJECTED"],
+            description: "Filter by status (default: PENDING).",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "approve_role_request",
+      description:
+        "Approve a pending role request. This will grant the user the requested role.",
+      parameters: {
+        type: "object",
+        properties: {
+          request_id: {
+            type: "string",
+            description: "The UUID of the role request to approve.",
+          },
+          note: {
+            type: "string",
+            description: "Optional approval note (max 500 chars).",
+          },
+        },
+        required: ["request_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "reject_role_request",
+      description:
+        "Reject a pending role request with a required reason.",
+      parameters: {
+        type: "object",
+        properties: {
+          request_id: {
+            type: "string",
+            description: "The UUID of the role request to reject.",
+          },
+          reason: {
+            type: "string",
+            description: "Required reason for rejection (max 500 chars).",
+          },
+        },
+        required: ["request_id", "reason"],
+      },
+    },
+  },
+
+  // ---- Group C: KPI ---------------------------------------------------
+  {
+    type: "function",
+    function: {
+      name: "get_revenue_summary",
+      description:
+        "Get platform revenue, referrer commissions, provider payouts, and net revenue for a time period.",
+      parameters: {
+        type: "object",
+        properties: {
+          days: {
+            type: "number",
+            description:
+              "Number of past days to aggregate (1–365, default 30).",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_recent_activity",
+      description:
+        "Get a breakdown of recent platform activity by event type (feed events grouped by type).",
+      parameters: {
+        type: "object",
+        properties: {
+          days: {
+            type: "number",
+            description:
+              "Number of past days to query (1–90, default 7).",
+          },
+        },
+      },
+    },
+  },
+
+  // ---- Group D: Operations --------------------------------------------
+  {
+    type: "function",
+    function: {
+      name: "get_ops_summary",
+      description:
+        "Get a combined ops overview: 7-day revenue summary + 7-day activity breakdown. Use this as a quick daily check.",
+      parameters: {
+        type: "object",
+        properties: {},
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_audit_log",
+      description:
+        "Retrieve recent audit log entries. Optionally filter by action prefix or actor type.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: {
+            type: "number",
+            description: "Max number of entries (default 20).",
+          },
+          action: {
+            type: "string",
+            description: "Filter by action prefix (e.g. 'ledger', 'intake').",
+          },
+          actor_type: {
+            type: "string",
+            enum: ["USER", "SERVICE", "AGENT"],
+            description: "Filter by actor type.",
+          },
+        },
+      },
+    },
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Zod schemas — runtime argument validation
+// ---------------------------------------------------------------------------
+
+const getIntakeQueueSchema = z.object({
+  status: z
+    .array(z.enum(["NEW", "TRIAGED", "QUALIFIED", "BOOKED", "LOST"]))
+    .optional(),
+  limit: z.number().int().min(1).max(100).default(20),
+});
+
+const getIntakeDetailSchema = z.object({
+  intake_id: z.string().min(1),
+});
+
+const updateIntakeStatusSchema = z.object({
+  intake_id: z.string().min(1),
+  new_status: z.enum(["TRIAGED", "QUALIFIED", "BOOKED", "LOST"]),
+  note: z.string().max(500).optional(),
+});
+
+const listRoleRequestsSchema = z.object({
+  status: z.enum(["PENDING", "APPROVED", "REJECTED"]).default("PENDING"),
+});
+
+const approveRoleRequestSchema = z.object({
+  request_id: z.string().min(1),
+  note: z.string().max(500).optional(),
+});
+
+const rejectRoleRequestSchema = z.object({
+  request_id: z.string().min(1),
+  reason: z.string().min(1).max(500),
+});
+
+const getRevenueSummarySchema = z.object({
+  days: z.number().int().min(1).max(365).default(30),
+});
+
+const getRecentActivitySchema = z.object({
+  days: z.number().int().min(1).max(90).default(7),
+});
+
+const getAuditLogSchema = z.object({
+  limit: z.number().int().min(1).max(100).default(20),
+  action: z.string().optional(),
+  actor_type: z.enum(["USER", "SERVICE", "AGENT"]).optional(),
+});
+
+// ---------------------------------------------------------------------------
+// executeMaestroTool — tool dispatcher
+// ---------------------------------------------------------------------------
+
+export function executeMaestroTool(
+  name: string,
+  args: unknown,
+  db: Db,
+): Record<string, unknown> {
+  try {
+    switch (name) {
+      // ------------------------------------------------------------------
+      // Group A — Queue
+      // ------------------------------------------------------------------
+
+      case "get_intake_queue": {
+        const { status, limit } = getIntakeQueueSchema.parse(args);
+        const whereParts: string[] = [];
+        const params: unknown[] = [];
+
+        if (status && status.length > 0) {
+          whereParts.push(
+            `ir.status IN (${status.map(() => "?").join(", ")})`,
+          );
+          params.push(...status);
+        }
+
+        const where =
+          whereParts.length > 0 ? `WHERE ${whereParts.join(" AND ")}` : "";
+        params.push(limit);
+
+        const rows = db
+          .prepare(
+            `
+SELECT ir.id,
+       ir.contact_name,
+       ir.contact_email,
+       ir.status,
+       ir.audience,
+       ir.owner_user_id,
+       ir.priority,
+       ir.created_at
+FROM intake_requests ir
+${where}
+ORDER BY ir.created_at DESC
+LIMIT ?
+`,
+          )
+          .all(...params) as Array<{
+          id: string;
+          contact_name: string;
+          contact_email: string;
+          status: string;
+          audience: string;
+          owner_user_id: string | null;
+          priority: number;
+          created_at: string;
+        }>;
+
+        return { intakes: rows, count: rows.length };
+      }
+
+      case "get_intake_detail": {
+        const { intake_id } = getIntakeDetailSchema.parse(args);
+
+        const row = db
+          .prepare(
+            `
+SELECT ir.*
+FROM intake_requests ir
+WHERE ir.id = ?
+`,
+          )
+          .get(intake_id) as Record<string, unknown> | undefined;
+
+        if (!row) {
+          return { error: `Intake ${intake_id} not found` };
+        }
+
+        const history = db
+          .prepare(
+            `
+SELECT id, from_status, to_status, note, changed_by, changed_at
+FROM intake_status_history
+WHERE intake_request_id = ?
+ORDER BY changed_at ASC
+`,
+          )
+          .all(intake_id) as Array<{
+          id: string;
+          from_status: string | null;
+          to_status: string;
+          note: string | null;
+          changed_by: string | null;
+          changed_at: string;
+        }>;
+
+        const ticket = db
+          .prepare(
+            `SELECT * FROM triage_tickets WHERE intake_request_id = ? LIMIT 1`,
+          )
+          .get(intake_id) as Record<string, unknown> | null | undefined;
+
+        return {
+          intake: row,
+          history,
+          triage_ticket: ticket ?? null,
+        };
+      }
+
+      case "update_intake_status": {
+        const { intake_id, new_status, note } =
+          updateIntakeStatusSchema.parse(args);
+
+        const now = new Date().toISOString();
+
+        const existing = db
+          .prepare(
+            `SELECT id, status, owner_user_id FROM intake_requests WHERE id = ?`,
+          )
+          .get(intake_id) as
+          | { id: string; status: string; owner_user_id: string | null }
+          | undefined;
+
+        if (!existing) {
+          return { error: `Intake ${intake_id} not found` };
+        }
+
+        db.transaction(() => {
+          db.prepare(
+            `UPDATE intake_requests SET status = ?, updated_at = ? WHERE id = ?`,
+          ).run(new_status, now, intake_id);
+
+          db.prepare(
+            `
+INSERT INTO intake_status_history (id, intake_request_id, from_status, to_status, note, changed_by, changed_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+`,
+          ).run(
+            randomUUID(),
+            intake_id,
+            existing.status,
+            new_status,
+            note ?? null,
+            null,
+            now,
+          );
+
+          // Write a feed event when the intake has an owner
+          if (existing.owner_user_id) {
+            writeFeedEvent(db, {
+              userId: existing.owner_user_id,
+              type: "IntakeStatusChanged",
+              title: `Intake moved to ${new_status}`,
+              description: `Intake ${intake_id} status changed from ${existing.status} to ${new_status}${note ? `: ${note}` : "."}`,
+            });
+          }
+        })();
+
+        return { success: true, intake_id, previous_status: existing.status, new_status };
+      }
+
+      // ------------------------------------------------------------------
+      // Group B — Role Approvals
+      // ------------------------------------------------------------------
+
+      case "list_role_requests": {
+        const { status } = listRoleRequestsSchema.parse(args);
+
+        const rows = db
+          .prepare(
+            `
+SELECT rr.id,
+       rr.user_id,
+       u.email              AS user_email,
+       r.name               AS requested_role,
+       rr.status,
+       rr.created_at,
+       rr.context
+FROM role_requests rr
+JOIN users u  ON u.id  = rr.user_id
+JOIN roles r  ON r.id  = rr.requested_role_id
+WHERE rr.status = ?
+ORDER BY rr.created_at DESC
+`,
+          )
+          .all(status) as Array<{
+          id: string;
+          user_id: string;
+          user_email: string;
+          requested_role: string;
+          status: string;
+          created_at: string;
+          context: string | null;
+        }>;
+
+        return { requests: rows, count: rows.length };
+      }
+
+      case "approve_role_request": {
+        const { request_id, note } = approveRoleRequestSchema.parse(args);
+        const now = new Date().toISOString();
+
+        const req = db
+          .prepare(
+            `
+SELECT rr.id,
+       rr.user_id,
+       rr.requested_role_id,
+       r.name AS role_name,
+       rr.status
+FROM role_requests rr
+JOIN roles r ON r.id = rr.requested_role_id
+WHERE rr.id = ?
+`,
+          )
+          .get(request_id) as
+          | {
+              id: string;
+              user_id: string;
+              requested_role_id: string;
+              role_name: string;
+              status: string;
+            }
+          | undefined;
+
+        if (!req) {
+          return { error: `Role request ${request_id} not found` };
+        }
+        if (req.status !== "PENDING") {
+          return { error: `Role request is already ${req.status}` };
+        }
+
+        db.transaction(() => {
+          db.prepare(
+            `UPDATE role_requests SET status = 'APPROVED', updated_at = ? WHERE id = ?`,
+          ).run(now, request_id);
+
+          db.prepare(
+            `INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)`,
+          ).run(req.user_id, req.requested_role_id);
+
+          writeFeedEvent(db, {
+            userId: req.user_id,
+            type: "RoleApproved",
+            title: `Role approved: ${req.role_name}`,
+            description: `Your request for the ${req.role_name} role has been approved${note ? `. Note: ${note}` : "."}`,
+          });
+        })();
+
+        return { success: true, user_id: req.user_id, role: req.role_name };
+      }
+
+      case "reject_role_request": {
+        const { request_id, reason } = rejectRoleRequestSchema.parse(args);
+        const now = new Date().toISOString();
+
+        const req = db
+          .prepare(
+            `
+SELECT rr.id,
+       rr.user_id,
+       r.name AS role_name,
+       rr.status
+FROM role_requests rr
+JOIN roles r ON r.id = rr.requested_role_id
+WHERE rr.id = ?
+`,
+          )
+          .get(request_id) as
+          | { id: string; user_id: string; role_name: string; status: string }
+          | undefined;
+
+        if (!req) {
+          return { error: `Role request ${request_id} not found` };
+        }
+        if (req.status !== "PENDING") {
+          return { error: `Role request is already ${req.status}` };
+        }
+
+        db.prepare(
+          `UPDATE role_requests SET status = 'REJECTED', updated_at = ? WHERE id = ?`,
+        ).run(now, request_id);
+
+        writeFeedEvent(db, {
+          userId: req.user_id,
+          type: "RoleRejected",
+          title: `Role request rejected: ${req.role_name}`,
+          description: `Your request for the ${req.role_name} role was rejected. Reason: ${reason}`,
+        });
+
+        return { success: true, user_id: req.user_id, role: req.role_name };
+      }
+
+      // ------------------------------------------------------------------
+      // Group C — KPI
+      // ------------------------------------------------------------------
+
+      case "get_revenue_summary": {
+        const { days } = getRevenueSummarySchema.parse(args);
+        return _getRevenueSummary(db, days);
+      }
+
+      case "get_recent_activity": {
+        const { days } = getRecentActivitySchema.parse(args);
+        return _getRecentActivity(db, days);
+      }
+
+      // ------------------------------------------------------------------
+      // Group D — Operations
+      // ------------------------------------------------------------------
+
+      case "get_ops_summary": {
+        const revenue = _getRevenueSummary(db, 7);
+        const activity = _getRecentActivity(db, 7);
+        return {
+          revenue_summary: revenue,
+          activity_summary: activity,
+        };
+      }
+
+      case "get_audit_log": {
+        const { limit, action, actor_type } = getAuditLogSchema.parse(args);
+
+        const whereParts: string[] = [];
+        const params: unknown[] = [];
+
+        if (action) {
+          whereParts.push("action LIKE ?");
+          params.push(`${action}%`);
+        }
+        if (actor_type) {
+          whereParts.push("actor_type = ?");
+          params.push(actor_type);
+        }
+
+        const where =
+          whereParts.length > 0
+            ? `WHERE ${whereParts.join(" AND ")}`
+            : "";
+
+        params.push(limit);
+
+        const rows = db
+          .prepare(
+            `
+SELECT id, actor_type, actor_id, action, target_type, target_id, created_at, request_id
+FROM audit_log
+${where}
+ORDER BY created_at DESC
+LIMIT ?
+`,
+          )
+          .all(...params) as Array<{
+          id: string;
+          actor_type: string;
+          actor_id: string | null;
+          action: string;
+          target_type: string;
+          target_id: string | null;
+          created_at: string;
+          request_id: string;
+        }>;
+
+        return { entries: rows, count: rows.length };
+      }
+
+      default:
+        return { error: `Unknown tool: ${name}` };
+    }
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return { error: `Invalid arguments: ${err.message}` };
+    }
+    return {
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}

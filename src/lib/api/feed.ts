@@ -16,7 +16,15 @@ export interface FeedItem {
     | "RoleRequestUpdate"
     | "ReferralActivity"
     | "PayoutStatus"
-    | "IntakeAbandoned";
+    | "IntakeAbandoned"
+    | "NewIntakeRequest"
+    | "IntakeStatusChanged"
+    | "RoleApproved"
+    | "RoleRejected"
+    | "DealClosed"
+    | "PaymentReceived"
+    | "NewsletterScheduled"
+    | "BookingCreated";
   timestamp: string;
   title: string;
   description: string;

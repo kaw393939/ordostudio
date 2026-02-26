@@ -35,6 +35,7 @@ describe("menu registry", () => {
       "CRM",
       "Ledger",
       "Newsletter",
+      "Chat",
     ]);
 
     expect(resolveMenuForContext("adminPrimary", { audience: "admin", roles: ["MAESTRO"] }).map((item) => item.label)).toEqual([
@@ -42,6 +43,7 @@ describe("menu registry", () => {
       "Events",
       "CRM",
       "Newsletter",
+      "Chat",
     ]);
 
     expect(resolveMenuForContext("adminPrimary", { audience: "admin", roles: ["SUPER_ADMIN"] }).map((item) => item.label)).toEqual([
@@ -68,6 +70,7 @@ describe("menu registry", () => {
       "Audit",
       "Telemetry",
       "Agent Ops",
+      "Chat",
     ]);
   });
 

@@ -29,6 +29,8 @@ import { triageRequest } from "../lib/llm-triage";
 import { writeFeedEvent } from "../lib/api/feed-events";
 import { executeAgentTool, AGENT_TOOL_DEFINITIONS } from "../lib/api/agent-tools";
 import { AGENT_SYSTEM_PROMPT } from "../lib/api/agent-system-prompt";
+import { MAESTRO_SYSTEM_PROMPT } from "../lib/api/maestro-system-prompt";
+import { MAESTRO_TOOLS, executeMaestroTool } from "../lib/api/maestro-tools";
 
 // ---------------------------------------------------------------------------
 // Helpers — response checks
@@ -392,6 +394,95 @@ async function runContentRetrievalScenario(
 // Public API
 // ---------------------------------------------------------------------------
 
+async function runMaestroScenario(
+  scenario: Extract<EvalScenario, { type: "maestro" }>,
+  apiKey: string,
+): Promise<EvalResult> {
+  const start = Date.now();
+  const evalDb = await setupEvalDb();
+
+  try {
+    if (scenario.preSetup) {
+      scenario.preSetup(evalDb.db, evalDb.adminId);
+    }
+
+    process.env.APPCTL_DB_FILE = evalDb.dbPath;
+    process.env.APPCTL_ENV = "local";
+
+    const history: Array<{ role: "user" | "assistant"; text: string }> = [];
+    const turnResults: TurnResult[] = [];
+
+    for (let i = 0; i < scenario.turns.length; i++) {
+      const turn = scenario.turns[i];
+
+      const claudeResult = await runClaudeAgentLoop({
+        apiKey,
+        systemPrompt: MAESTRO_SYSTEM_PROMPT,
+        history,
+        userMessage: turn.userMessage,
+        tools: MAESTRO_TOOLS,
+        executeToolFn: async (name, args) =>
+          executeMaestroTool(name, args, evalDb.db),
+      });
+
+      const toolsCalledNames = claudeResult.toolEvents
+        .filter((e) => e.type === "tool_call")
+        .map((e) => e.name);
+
+      const checkResults: CheckResult[] = (turn.responseChecks ?? []).map(
+        (check) =>
+          evalResponseCheck(check, claudeResult.assistantText, toolsCalledNames),
+      );
+
+      const turnPassed = checkResults.every((r) => r.passed);
+
+      turnResults.push({
+        turn: i + 1,
+        userMessage: turn.userMessage,
+        assistantText: claudeResult.assistantText,
+        toolsCalledNames,
+        checkResults,
+        passed: turnPassed,
+      });
+
+      history.push({ role: "user", text: turn.userMessage });
+      history.push({ role: "assistant", text: claudeResult.assistantText });
+    }
+
+    // Reload DB for assertions (maestro tools wrote via evalDb.db connection)
+    const freshDb = new Database(evalDb.dbPath);
+    const dbAssertionResults: CheckResult[] = (scenario.dbAssertions ?? []).map(
+      (a) => evalDbAssertion(a, freshDb),
+    );
+    freshDb.close();
+
+    const allChecksPassed =
+      turnResults.every((t) => t.passed) &&
+      dbAssertionResults.every((r) => r.passed);
+
+    return {
+      scenario,
+      passed: allChecksPassed,
+      turns: turnResults,
+      dbAssertionResults,
+      durationMs: Date.now() - start,
+    };
+  } catch (err) {
+    return {
+      scenario,
+      passed: false,
+      durationMs: Date.now() - start,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  } finally {
+    await teardownEvalDb(evalDb);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Public API — run a single scenario
+// ---------------------------------------------------------------------------
+
 /**
  * Run a single scenario and return its result.
  * Requires ANTHROPIC_API_KEY to be set for "intake-agent" and "triage" kinds.
@@ -409,6 +500,8 @@ export async function runScenario(scenario: EvalScenario): Promise<EvalResult> {
       return runWorkflowScenario(scenario);
     case "content-retrieval":
       return runContentRetrievalScenario(scenario, apiKey);
+    case "maestro":
+      return runMaestroScenario(scenario, apiKey);
   }
 }
 

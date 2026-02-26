@@ -6,9 +6,9 @@ export const PROVIDER_PAYOUT_RATE = 0.60;
 
 /**
  * The commission rate paid to affiliates/referrers.
- * 20% of the gross deal value.
+ * 4% of the gross deal value (= 20% of the 20% platform fee).
  */
-export const AFFILIATE_COMMISSION_RATE = 0.20;
+export const AFFILIATE_COMMISSION_RATE = 0.04;
 
 /**
  * Import-time assertion: provider + affiliate must not exceed 100%.

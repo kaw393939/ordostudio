@@ -26,6 +26,8 @@ Commands:
   reg                Event registration commands
   checkin [options]  Check in a registered user
   jobs               Background job queue management
+  index-content      Index all content/**/*.md files into the embeddings table
+                     using OpenAI embeddings
   help [command]     display help for command
 "
 `;
