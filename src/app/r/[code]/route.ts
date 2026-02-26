@@ -1,4 +1,5 @@
-import { recordReferralClick, ReferralCodeNotFoundError } from "../../../lib/api/referrals";
+import { recordReferralClick, ReferralCodeNotFoundError, lookupReferralCode } from "../../../lib/api/referrals";
+import { getSessionUserFromRequest } from "../../../lib/api/auth";
 
 const COOKIE_NAME = "so_ref";
 
@@ -7,6 +8,20 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
 
   const url = new URL(request.url);
   const redirectTarget = `/card?ref=${code.toUpperCase()}`;
+
+  // Policy rule 3: self-referral must be blocked at click time.
+  // If the logged-in user owns this referral code, redirect without setting the cookie.
+  try {
+    const sessionUser = getSessionUserFromRequest(request);
+    if (sessionUser) {
+      const referralRecord = lookupReferralCode(code);
+      if (referralRecord.user_id === sessionUser.id) {
+        return Response.redirect(new URL(redirectTarget, url.origin), 302);
+      }
+    }
+  } catch {
+    // Ignore session or code lookup errors — proceed normally.
+  }
 
   try {
     recordReferralClick({

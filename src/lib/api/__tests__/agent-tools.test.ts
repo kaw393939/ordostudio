@@ -225,6 +225,9 @@ describe("executeAgentTool — create_booking Zod validation", () => {
         get: vi.fn().mockReturnValue(undefined),
         run: vi.fn(),
       }),
+      // create_booking wraps its db calls in a transaction; the resolved
+      // function is invoked immediately so slot-not-found is still raised.
+      transaction: vi.fn().mockImplementation((fn: () => unknown) => fn),
       close: vi.fn(),
     };
     const result = await executeAgentTool(

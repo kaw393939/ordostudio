@@ -91,7 +91,9 @@ describe("appctl db core", () => {
     const count = db.prepare("SELECT COUNT(*) AS count FROM roles").get() as { count: number };
     db.close();
 
-    expect(count.count).toBe(5);
+    // migration-044 seeds ASSOCIATE/CERTIFIED_CONSULTANT/STAFF (3 rows);
+    // seed() adds USER/ADMIN/SUPER_ADMIN/AFFILIATE/APPRENTICE (5 more) = 8 total.
+    expect(count.count).toBe(8);
   });
 
   it("seed fails with precondition when migrations are pending", async () => {
@@ -141,6 +143,8 @@ describe("appctl db core", () => {
     const roles = check.prepare("SELECT COUNT(*) AS count FROM roles").get() as { count: number };
     check.close();
 
-    expect(roles.count).toBe(0);
+    // migration-044 committed 3 role rows before the failed seed transaction;
+    // only the seed transaction is rolled back, so those 3 rows survive.
+    expect(roles.count).toBe(3);
   });
 });

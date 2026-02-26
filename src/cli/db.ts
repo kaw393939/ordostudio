@@ -1577,6 +1577,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_deal_payments_created
   WHERE status = 'CREATED';
 `,
   },
+  {
+    name: "044_missing_roles_seed",
+    sql: `
+-- Seed roles that are referenced in business logic but were missing from the
+-- initial roles seed. INSERT OR IGNORE makes this migration idempotent.
+INSERT OR IGNORE INTO roles (id, name) VALUES
+  ('role_associate',            'ASSOCIATE'),
+  ('role_certified_consultant', 'CERTIFIED_CONSULTANT'),
+  ('role_staff',                'STAFF');
+`,
+  },
 ];
 
 const ensureMetaTable = (db: Database.Database): void => {

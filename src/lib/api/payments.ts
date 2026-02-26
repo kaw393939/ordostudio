@@ -236,6 +236,33 @@ INSERT INTO stripe_webhook_events (
     }
 
     try {
+      if (event.type === "charge.refunded") {
+        // Policy rule 8: void EARNED/APPROVED commissions when Stripe issues a
+        // refund directly (e.g., via the Stripe dashboard or dispute handler).
+        // The Stripe Charge object carries the payment_intent ID we can reverse-lookup.
+        const charge = event.data.object as { id: string; payment_intent?: string | null };
+        const paymentIntentId = charge.payment_intent;
+
+        if (paymentIntentId) {
+          const payment = db
+            .prepare("SELECT deal_id FROM deal_payments WHERE payment_intent_id = ?")
+            .get(paymentIntentId) as { deal_id: string } | undefined;
+
+          if (payment?.deal_id) {
+            const voidedAt = new Date().toISOString();
+            db.transaction(() => {
+              db.prepare(
+                `UPDATE ledger_entries
+                 SET status = 'VOID', updated_at = ?
+                 WHERE deal_id = ?
+                   AND entry_type IN ('REFERRER_COMMISSION', 'PLATFORM_REVENUE')
+                   AND status IN ('EARNED', 'APPROVED')`,
+              ).run(voidedAt, payment.deal_id);
+            })();
+          }
+        }
+      }
+
       if (event.type === "checkout.session.completed") {
         const session = event.data.object as {
           id: string;

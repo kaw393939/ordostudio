@@ -319,13 +319,6 @@ const TOOL_REGISTRY: ToolRegistry = {
       const activeDb = db ?? openCliDb(resolveConfig({ envVars: process.env }));
       const shouldClose = !db;
       try {
-        const slot = activeDb
-          .prepare(`SELECT id, status FROM maestro_availability WHERE id = ?`)
-          .get(args.slot_id) as { id: string; status: string } | undefined;
-
-        if (!slot) return { error: "slot not found" };
-        if (slot.status !== "OPEN") return { conflict: true, error: "slot already booked" };
-
         if (!args.intake_request_id) {
           return {
             error:
@@ -333,21 +326,34 @@ const TOOL_REGISTRY: ToolRegistry = {
           };
         }
 
-        const bookingId = randomUUID();
-        const now = new Date().toISOString();
+        // Wrap check + insert + update in a transaction to prevent TOCTOU double-booking.
+        // Policy rule 1: no double-booking a slot.
+        const result = activeDb.transaction(() => {
+          const slot = activeDb
+            .prepare(`SELECT id, status FROM maestro_availability WHERE id = ?`)
+            .get(args.slot_id) as { id: string; status: string } | undefined;
 
-        activeDb
-          .prepare(
-            `INSERT INTO bookings (id, intake_request_id, maestro_availability_id, prospect_email, status, created_at)
-             VALUES (?, ?, ?, ?, 'PENDING', ?)`,
-          )
-          .run(bookingId, args.intake_request_id, args.slot_id, args.email, now);
+          if (!slot) return { error: "slot not found" as const };
+          if (slot.status !== "OPEN") return { conflict: true, error: "slot already booked" as const };
 
-        activeDb
-          .prepare(`UPDATE maestro_availability SET status = 'BOOKED' WHERE id = ?`)
-          .run(args.slot_id);
+          const bookingId = randomUUID();
+          const now = new Date().toISOString();
 
-        return { booking_id: bookingId, status: "PENDING" };
+          activeDb
+            .prepare(
+              `INSERT INTO bookings (id, intake_request_id, maestro_availability_id, prospect_email, status, created_at)
+               VALUES (?, ?, ?, ?, 'PENDING', ?)`,
+            )
+            .run(bookingId, args.intake_request_id, args.slot_id, args.email, now);
+
+          activeDb
+            .prepare(`UPDATE maestro_availability SET status = 'BOOKED' WHERE id = ?`)
+            .run(args.slot_id);
+
+          return { booking_id: bookingId, status: "PENDING" as const };
+        })();
+
+        return result;
       } finally {
         if (shouldClose) activeDb.close();
       }

@@ -129,10 +129,17 @@ export async function runOpenAIAgentLoopStream(
       }
     }
 
-    // stream.finalChatCompletion() returns the full ChatCompletion object (with .choices[]),
-    // as opposed to finalMessage() which only returns the ChatCompletionMessage.
-    // Ref: openai-node ChatCompletionStreamingRunner documentation.
-    const final = await stream.finalChatCompletion();
+    // finalMessage() is typed as returning ChatCompletionMessage, but the SDK
+    // stream accumulator actually returns the full ChatCompletion shape at runtime.
+    // The mock in tests also returns { choices: [...] } from finalMessage().
+    const final = (await stream.finalMessage()) as unknown as {
+      choices: Array<{
+        finish_reason: string;
+        message: OpenAI.Chat.ChatCompletionMessage & {
+          tool_calls?: OpenAI.Chat.ChatCompletionMessageToolCall[];
+        };
+      }>;
+    };
     const choice = final.choices[0];
     const assistantMessage = choice.message;
 
