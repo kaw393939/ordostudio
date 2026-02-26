@@ -4,7 +4,7 @@
  * Automates the path from a QUALIFIED contact to a live user with onboarding tasks.
  */
 
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomInt } from "node:crypto";
 import { hash } from "@node-rs/argon2";
 import type Database from "better-sqlite3";
 
@@ -43,9 +43,9 @@ export class ContactNotQualifiedError extends Error {
 // ---------------------------------------------------------------------------
 
 function generateTempPassword(): string {
-  // 12-char alphanumeric password
+  // Use cryptographically secure randomInt (OS CSPRNG) instead of Math.random().
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-  return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  return Array.from({ length: 12 }, () => chars[randomInt(0, chars.length)]).join("");
 }
 
 function buildProvisioningWelcomeEmail(
