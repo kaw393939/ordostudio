@@ -306,3 +306,164 @@ export async function runClaudeAgentLoop(
 
   return { assistantText, toolEvents, capturedValues };
 }
+
+// ---------------------------------------------------------------------------
+// Streaming agent loop — fires onDelta per real Anthropic token
+// ---------------------------------------------------------------------------
+
+export interface ClaudeStreamCallbacks {
+  /** Called for each streaming text delta from the model. */
+  onDelta: (text: string) => void;
+  /** Called when a tool is invoked (before execution). */
+  onToolCall?: (name: string, args: Record<string, unknown>) => void;
+  /** Called after a tool finishes executing. */
+  onToolResult?: (name: string, result: unknown) => void;
+}
+
+export interface ClaudeAgentLoopStreamResult {
+  toolEvents: ToolEvent[];
+  capturedValues: Record<string, unknown>;
+}
+
+/**
+ * Stream a single turn of the conversational intake agent using Claude.
+ *
+ * Identical semantics to `runClaudeAgentLoop` but fires `callbacks.onDelta`
+ * for each text token as it arrives from the Anthropic streaming API.
+ * Tool calls are still collected synchronously after each streaming round.
+ *
+ * Returns the same toolEvents + capturedValues as the batch version.
+ * The caller must accumulate the streamed text itself (via `onDelta`) to
+ * obtain the final assistant message text.
+ */
+export async function runClaudeAgentLoopStream(
+  options: ClaudeAgentLoopOptions & { callbacks: ClaudeStreamCallbacks },
+): Promise<ClaudeAgentLoopStreamResult> {
+  const {
+    apiKey,
+    model = process.env.ANTHROPIC_MODEL ?? DEFAULT_CLAUDE_MODEL,
+    systemPrompt,
+    history,
+    userMessage,
+    userContentBlocks,
+    tools,
+    executeToolFn,
+    maxToolRounds = 4,
+    callbacks,
+  } = options;
+
+  const client = new Anthropic({ apiKey });
+
+  const anthropicTools: Anthropic.Tool[] = tools.map((def) => ({
+    name: def.function.name,
+    description: def.function.description,
+    input_schema: def.function.parameters as Anthropic.Tool["input_schema"],
+  }));
+
+  const currentUserContent: Anthropic.ContentBlockParam[] = [
+    ...(userContentBlocks ?? []),
+    ...(userMessage ? [{ type: "text" as const, text: userMessage }] : []),
+  ];
+
+  const anthropicMessages: Anthropic.MessageParam[] = [
+    ...history.map(
+      (h): Anthropic.MessageParam => ({ role: h.role, content: h.text }),
+    ),
+    {
+      role: "user",
+      content:
+        currentUserContent.length === 1 &&
+        currentUserContent[0]?.type === "text"
+          ? (currentUserContent[0] as Anthropic.TextBlockParam).text
+          : currentUserContent,
+    },
+  ];
+
+  const toolEvents: ToolEvent[] = [];
+  const capturedValues: Record<string, unknown> = {};
+  let round = 0;
+
+  while (round < maxToolRounds) {
+    round++;
+
+    // Start a streaming request
+    const stream = client.messages.stream({
+      model,
+      max_tokens: MAX_AGENT_TOKENS,
+      system: systemPrompt,
+      messages: anthropicMessages,
+      tools: anthropicTools,
+    });
+
+    // Fire onDelta for each text token as it arrives
+    stream.on("text", (text) => {
+      callbacks.onDelta(text);
+    });
+
+    // Await the complete message (includes tool_use blocks if any)
+    const response = await stream.finalMessage();
+
+    if (response.stop_reason !== "tool_use") {
+      // No tool calls — this round is the final response
+      break;
+    }
+
+    // Extract tool_use blocks and handle them
+    const toolUseBlocks = response.content.filter(
+      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
+    );
+    if (toolUseBlocks.length === 0) break;
+
+    anthropicMessages.push({ role: "assistant", content: response.content });
+
+    const toolResultContents: Anthropic.ToolResultBlockParam[] = [];
+
+    for (const toolUse of toolUseBlocks) {
+      const toolArgs = toolUse.input as Record<string, unknown>;
+      toolEvents.push({ type: "tool_call", name: toolUse.name, args: toolArgs });
+      callbacks.onToolCall?.(toolUse.name, toolArgs);
+
+      let toolResult: unknown;
+      try {
+        toolResult = await executeToolFn(toolUse.name, toolArgs);
+      } catch (err) {
+        toolResult = { error: err instanceof Error ? err.message : String(err) };
+      }
+
+      toolEvents.push({ type: "tool_result", name: toolUse.name, result: toolResult });
+      callbacks.onToolResult?.(toolUse.name, toolResult);
+
+      // Capture interesting values
+      if (
+        toolUse.name === "submit_intake" &&
+        toolResult &&
+        typeof toolResult === "object" &&
+        "intake_request_id" in (toolResult as Record<string, unknown>)
+      ) {
+        capturedValues.intake_request_id = (
+          toolResult as Record<string, unknown>
+        ).intake_request_id;
+      }
+      if (
+        toolUse.name === "create_booking" &&
+        toolResult &&
+        typeof toolResult === "object" &&
+        "booking_id" in (toolResult as Record<string, unknown>)
+      ) {
+        capturedValues.booking_id = (
+          toolResult as Record<string, unknown>
+        ).booking_id;
+      }
+
+      toolResultContents.push({
+        type: "tool_result",
+        tool_use_id: toolUse.id,
+        content: JSON.stringify(toolResult),
+      });
+    }
+
+    anthropicMessages.push({ role: "user", content: toolResultContents });
+  }
+
+  return { toolEvents, capturedValues };
+}

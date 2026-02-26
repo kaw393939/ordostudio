@@ -3,6 +3,12 @@
  *
  * Conversational intake agent endpoint (Server-Sent Events streaming).
  * No authentication required — tracked by browser session_id.
+ *
+ * DB lifecycle:
+ *  - All non-streaming paths close `db` before returning their Response.
+ *  - The Claude streaming path transfers db ownership to the ReadableStream;
+ *    db.close() happens inside the stream's start() finally block.
+ *  - The outer POST handler only closes db on unexpected throws.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -11,7 +17,7 @@ import OpenAI from "openai";
 import { openCliDb } from "@/platform/runtime";
 import { resolveConfig } from "@/platform/config";
 import { AGENT_TOOL_DEFINITIONS, executeAgentTool } from "@/lib/api/agent-tools";
-import { runClaudeAgentLoop } from "@/lib/llm-anthropic";
+import { runClaudeAgentLoopStream } from "@/lib/llm-anthropic";
 import { AGENT_SYSTEM_PROMPT as BASE_SYSTEM_PROMPT } from "@/lib/api/agent-system-prompt";
 import { parseCookieHeader } from "@/lib/api/referrals";
 import { getSessionUserFromRequest } from "@/lib/api/auth";
@@ -20,6 +26,7 @@ import {
   loadOrCreateConversation,
   persistAssistantMessage,
   type ConversationMessage,
+  type ConversationRow,
 } from "@/lib/api/conversation-store";
 import { checkRateLimit } from "@/lib/api/rate-limiter";
 import { buildAnthropicContentBlocks } from "@/lib/api/attachment-builder";
@@ -130,7 +137,7 @@ function sseChunk(data: Record<string, unknown>): string {
 }
 
 // ---------------------------------------------------------------------------
-// LLM dispatch types
+// LLM dispatch types (OpenAI batch path only — Claude uses streaming)
 // ---------------------------------------------------------------------------
 
 interface ToolEvent {
@@ -140,7 +147,7 @@ interface ToolEvent {
   result?: unknown;
 }
 
-interface LLMResult {
+interface OAIBatchResult {
   assistantFinalContent: string;
   toolEvents: ToolEvent[];
   intakeRequestId: string | null;
@@ -155,8 +162,10 @@ export async function POST(request: NextRequest): Promise<Response> {
   const db = openCliDb(config);
   try {
     return await handleChatPost(request, db);
-  } finally {
+  } catch (err) {
+    // Unexpected error — ensure db is closed even if handleChatPost throws.
     db.close();
+    throw err;
   }
 }
 
@@ -164,16 +173,38 @@ async function handleChatPost(
   request: NextRequest,
   db: ReturnType<typeof openCliDb>,
 ): Promise<Response> {
+  // -- Parse + validate body (no DB needed) --
   const parseResult = await parseAndValidateChatBody(request);
-  if (!parseResult.ok) return parseResult.response;
+  if (!parseResult.ok) {
+    db.close();
+    return parseResult.response;
+  }
   const { sessionId, userMessage, conversationId, attachments } = parseResult.data;
 
-  const { conversation, messages } = loadOrCreateConversation(db, sessionId, conversationId);
+  // -- Load or create conversation --
+  let conversation: ConversationRow;
+  let messages: ConversationMessage[];
+  try {
+    const loaded = loadOrCreateConversation(db, sessionId, conversationId);
+    conversation = loaded.conversation;
+    messages = loaded.messages;
+  } catch (err) {
+    db.close();
+    if (err instanceof Response) return err;
+    return new Response(JSON.stringify({ error: "database error" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
+  // -- Rate limit --
   const rateCheck = checkRateLimit(messages, MAX_TURNS, conversation.id);
-  if (rateCheck.limited) return rateCheck.response;
+  if (rateCheck.limited) {
+    db.close();
+    return rateCheck.response;
+  }
 
-  // Append user message (text + attachment description labels for the DB record)
+  // -- Append user message to history --
   const attachmentDescriptions = attachments.map((a) =>
     a.type === "image"
       ? `[Image: ${a.name || "attached image"}]`
@@ -185,105 +216,169 @@ async function handleChatPost(
   const userContentBlocks = buildAnthropicContentBlocks(attachments);
   const systemPrompt = buildSystemPrompt(resolveConversationContext(db, request));
 
-  const llmResult = await runLLMDispatch({
-    messages,
-    userMessage,
-    userContentBlocks,
-    systemPrompt,
-    priorIntakeRequestId: conversation.intake_request_id ?? null,
-  });
-  if (llmResult instanceof Response) return llmResult;
-
-  persistAssistantMessage(
-    db,
-    conversation,
-    messages,
-    llmResult.assistantFinalContent,
-    llmResult.intakeRequestId,
-  );
-
-  return buildSSEResponse(
-    llmResult.toolEvents,
-    llmResult.assistantFinalContent,
-    conversation.id,
-    llmResult.intakeRequestId,
-  );
-}
-
-// ---------------------------------------------------------------------------
-// LLM dispatch — Claude (preferred) or OpenAI (fallback)
-// ---------------------------------------------------------------------------
-
-async function runLLMDispatch(params: {
-  messages: ConversationMessage[];
-  userMessage: string;
-  userContentBlocks: Anthropic.ContentBlockParam[];
-  systemPrompt: string;
-  priorIntakeRequestId: string | null;
-}): Promise<LLMResult | Response> {
   const anthropicKey =
     process.env.ANTHROPIC_API_KEY ?? process.env.API__ANTHROPIC_API_KEY;
 
   if (anthropicKey) {
-    return runClaudePath(params, anthropicKey);
+    // Claude path — true token streaming. Transfers db ownership to the stream.
+    // db.close() happens inside the ReadableStream.start() finally block.
+    return buildClaudeStreamingResponse({
+      db,
+      conversation,
+      messages,
+      userMessage,
+      userContentBlocks,
+      systemPrompt,
+      anthropicKey,
+    });
   }
-  return runOpenAIPath(params);
-}
 
-async function runClaudePath(
-  params: {
-    messages: ConversationMessage[];
-    userMessage: string;
-    userContentBlocks: Anthropic.ContentBlockParam[];
-    systemPrompt: string;
-    priorIntakeRequestId: string | null;
-  },
-  apiKey: string,
-): Promise<LLMResult | Response> {
-  const priorTextMessages = params.messages
-    .slice(0, -1)
-    .filter((m) => m.role !== "tool")
-    .map((m) => ({ role: m.role as "user" | "assistant", text: m.content }));
-
-  let claudeResult: Awaited<ReturnType<typeof runClaudeAgentLoop>>;
+  // -- OpenAI fallback (batch) — TODO(R-10): upgrade to true streaming --
+  let oaiResult: OAIBatchResult | Response;
   try {
-    claudeResult = await runClaudeAgentLoop({
-      apiKey,
-      systemPrompt: params.systemPrompt,
-      history: priorTextMessages,
-      userMessage: params.userMessage,
-      userContentBlocks:
-        params.userContentBlocks.length > 0 ? params.userContentBlocks : undefined,
-      tools: AGENT_TOOL_DEFINITIONS,
-      executeToolFn: async (name, args) => executeAgentTool(name, args),
-      maxToolRounds: MAX_TOOL_ROUNDS,
+    oaiResult = await runOpenAIBatch({
+      messages,
+      systemPrompt,
+      priorIntakeRequestId: conversation.intake_request_id ?? null,
     });
   } catch {
+    db.close();
     return new Response(JSON.stringify({ error: "AI service unavailable" }), {
       status: 502,
       headers: { "Content-Type": "application/json" },
     });
   }
 
-  let intakeRequestId = params.priorIntakeRequestId;
-  if (typeof claudeResult.capturedValues.intake_request_id === "string") {
-    intakeRequestId = claudeResult.capturedValues.intake_request_id;
+  if (oaiResult instanceof Response) {
+    db.close();
+    return oaiResult;
   }
 
-  return {
-    assistantFinalContent: claudeResult.assistantText,
-    toolEvents: claudeResult.toolEvents,
-    intakeRequestId,
-  };
+  try {
+    persistAssistantMessage(
+      db,
+      conversation,
+      messages,
+      oaiResult.assistantFinalContent,
+      oaiResult.intakeRequestId,
+    );
+    return buildBatchSSEResponse(
+      oaiResult.toolEvents,
+      oaiResult.assistantFinalContent,
+      conversation.id,
+      oaiResult.intakeRequestId,
+    );
+  } finally {
+    db.close();
+  }
 }
 
-async function runOpenAIPath(params: {
+// ---------------------------------------------------------------------------
+// Claude: true token streaming
+// ---------------------------------------------------------------------------
+
+function buildClaudeStreamingResponse(params: {
+  db: ReturnType<typeof openCliDb>;
+  conversation: ConversationRow;
   messages: ConversationMessage[];
   userMessage: string;
   userContentBlocks: Anthropic.ContentBlockParam[];
   systemPrompt: string;
+  anthropicKey: string;
+}): Response {
+  const { db, conversation, messages } = params;
+  const encoder = new TextEncoder();
+
+  const priorTextMessages = messages
+    .slice(0, -1)
+    .filter((m) => m.role !== "tool")
+    .map((m) => ({ role: m.role as "user" | "assistant", text: m.content }));
+
+  const responseStream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let assistantText = "";
+
+      try {
+        const streamResult = await runClaudeAgentLoopStream({
+          apiKey: params.anthropicKey,
+          systemPrompt: params.systemPrompt,
+          history: priorTextMessages,
+          userMessage: params.userMessage,
+          userContentBlocks:
+            params.userContentBlocks.length > 0
+              ? params.userContentBlocks
+              : undefined,
+          tools: AGENT_TOOL_DEFINITIONS,
+          executeToolFn: async (name, args) => executeAgentTool(name, args),
+          maxToolRounds: MAX_TOOL_ROUNDS,
+          callbacks: {
+            onDelta(text) {
+              assistantText += text;
+              controller.enqueue(encoder.encode(sseChunk({ delta: text })));
+            },
+            onToolCall(name, args) {
+              controller.enqueue(
+                encoder.encode(sseChunk({ tool_call: { name, args } })),
+              );
+            },
+            onToolResult(name, result) {
+              controller.enqueue(
+                encoder.encode(sseChunk({ tool_result: { name, result } })),
+              );
+            },
+          },
+        });
+
+        const intakeRequestId =
+          typeof streamResult.capturedValues.intake_request_id === "string"
+            ? streamResult.capturedValues.intake_request_id
+            : (conversation.intake_request_id ?? null);
+
+        persistAssistantMessage(
+          db,
+          conversation,
+          messages,
+          assistantText,
+          intakeRequestId,
+        );
+
+        controller.enqueue(
+          encoder.encode(
+            sseChunk({
+              done: true,
+              conversation_id: conversation.id,
+              intake_submitted: intakeRequestId !== null,
+            }),
+          ),
+        );
+        controller.close();
+      } catch {
+        controller.error(new Error("stream failed"));
+      } finally {
+        db.close();
+      }
+    },
+  });
+
+  return new Response(responseStream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Conversation-Id": conversation.id,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// OpenAI: batch (TODO R-10 — upgrade to streaming)
+// ---------------------------------------------------------------------------
+
+async function runOpenAIBatch(params: {
+  messages: ConversationMessage[];
+  systemPrompt: string;
   priorIntakeRequestId: string | null;
-}): Promise<LLMResult | Response> {
+}): Promise<OAIBatchResult | Response> {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
   const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -384,10 +479,10 @@ async function runOpenAIPath(params: {
 }
 
 // ---------------------------------------------------------------------------
-// SSE response builder
+// Batch SSE response (OpenAI path — single delta, no fake word-split)
 // ---------------------------------------------------------------------------
 
-function buildSSEResponse(
+function buildBatchSSEResponse(
   toolEvents: ToolEvent[],
   assistantFinalContent: string,
   conversationId: string,
@@ -405,11 +500,11 @@ function buildSSEResponse(
         controller.enqueue(encoder.encode(sseChunk(payload)));
       }
 
-      // Stream text word-by-word for a natural feel
-      for (const word of assistantFinalContent.split(/(\s+)/)) {
-        if (word.trim()) {
-          controller.enqueue(encoder.encode(sseChunk({ delta: word })));
-        }
+      // Emit full content as a single delta (batch — no fake word-split)
+      if (assistantFinalContent) {
+        controller.enqueue(
+          encoder.encode(sseChunk({ delta: assistantFinalContent })),
+        );
       }
 
       controller.enqueue(
