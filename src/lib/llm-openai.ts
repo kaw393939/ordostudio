@@ -129,12 +129,10 @@ export async function runOpenAIAgentLoopStream(
       }
     }
 
-    // stream.finalMessage() is safe here even after the for-await loop exhausts
-    // the async iterator. The OpenAI SDK's Stream wrapper accumulates all delta
-    // chunks into an internal snapshot and resolves finalMessage() from that
-    // state — it does NOT attempt to re-read the closed network connection.
-    // Ref: openai-node StreamingChatCompletionRunner._messageSnapshot accumulation.
-    const final = await stream.finalMessage();
+    // stream.finalChatCompletion() returns the full ChatCompletion object (with .choices[]),
+    // as opposed to finalMessage() which only returns the ChatCompletionMessage.
+    // Ref: openai-node ChatCompletionStreamingRunner documentation.
+    const final = await stream.finalChatCompletion();
     const choice = final.choices[0];
     const assistantMessage = choice.message;
 
