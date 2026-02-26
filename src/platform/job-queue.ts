@@ -14,6 +14,18 @@ import type {
   JobStats,
 } from "@/core/ports/job-queue";
 
+/**
+ * Thrown by SqliteJobQueue.enqueue when a type string is not in the
+ * configured knownTypes set.  Fails fast before the job is persisted,
+ * surfacing integration errors at enqueue time rather than at processing time.
+ */
+export class UnknownJobTypeError extends Error {
+  constructor(public readonly jobType: string) {
+    super(`Unknown job type: ${jobType}`);
+    this.name = "UnknownJobTypeError";
+  }
+}
+
 interface DbJobRow {
   id: string;
   type: string;
@@ -47,9 +59,15 @@ function rowToRecord(row: DbJobRow): JobRecord {
 }
 
 export class SqliteJobQueue implements JobQueuePort {
-  constructor(private readonly db: Database.Database) {}
+  constructor(
+    private readonly db: Database.Database,
+    private readonly knownTypes?: ReadonlySet<string>,
+  ) {}
 
   enqueue(job: JobPayload, options?: EnqueueOptions): string {
+    if (this.knownTypes && !this.knownTypes.has(job.type)) {
+      throw new UnknownJobTypeError(job.type);
+    }
     const id = randomUUID();
     const now = new Date().toISOString();
     const runAt = options?.runAt ?? now;

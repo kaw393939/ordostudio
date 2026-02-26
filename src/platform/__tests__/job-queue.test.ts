@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import Database from "better-sqlite3";
-import { SqliteJobQueue } from "@/platform/job-queue";
+import { SqliteJobQueue, UnknownJobTypeError } from "@/platform/job-queue";
 import type { JobPayload } from "@/core/ports/job-queue";
 
 const JOB_QUEUE_DDL = `
@@ -319,6 +319,87 @@ describe("SqliteJobQueue", () => {
       const recovered = queue.recoverStale(5 * 60 * 1000);
       expect(recovered).toBe(0);
       expect(queue.getJob(id)!.status).toBe("running");
+    });
+  });
+
+  // JOB-01: Fast-fail unknown type validation
+  describe("enqueue — knownTypes validation (JOB-01)", () => {
+    it("throws UnknownJobTypeError before writing to DB for an unknown type", () => {
+      const knownTypes = new Set(["email.send", "newsletter.send"]);
+      const strictQueue = new SqliteJobQueue(db, knownTypes);
+
+      expect(() =>
+        strictQueue.enqueue({ type: "typo.job", data: {} }),
+      ).toThrow(UnknownJobTypeError);
+
+      // Confirm no row was written to the DB
+      const rows = db.prepare("SELECT id FROM job_queue WHERE type = ?").all("typo.job");
+      expect(rows).toHaveLength(0);
+    });
+
+    it("enqueues successfully when type is in knownTypes", () => {
+      const knownTypes = new Set(["email.send"]);
+      const strictQueue = new SqliteJobQueue(db, knownTypes);
+
+      const id = strictQueue.enqueue({ type: "email.send", data: { to: "a@b.com" } });
+      expect(id).toBeTruthy();
+      expect(strictQueue.getJob(id)!.type).toBe("email.send");
+    });
+
+    it("accepts any type when no knownTypes is configured (backwards compatible)", () => {
+      // Default queue (no knownTypes) should accept any type
+      const id = queue.enqueue({ type: "legacy.custom", data: {} });
+      expect(id).toBeTruthy();
+    });
+  });
+
+  // JOB-01: Stale recovery preserves attempts, exhausted stale job → dead
+  describe("recoverStale → processNext — stale attempts exhaust (JOB-01)", () => {
+    it("stale recovery preserves attempt count; repeated stale eventually exhausts to dead", async () => {
+      // Insert a job already in 'running' state with 1 attempt (simulates stale hang)
+      const id = queue.enqueue({ type: "heavy.task", data: {} }, { maxRetries: 2 });
+      const pastTime = "2020-01-01T00:00:00.000Z";
+      db.prepare(
+        "UPDATE job_queue SET status = 'running', started_at = ?, attempts = 1 WHERE id = ?",
+      ).run(pastTime, id);
+
+      // Recover stale — job goes back to pending; attempts must stay at 1
+      const recovered = queue.recoverStale(1); // 1 ms timeout — everything is stale
+      expect(recovered).toBe(1);
+
+      const afterRecovery = queue.getJob(id)!;
+      expect(afterRecovery.status).toBe("pending");
+      expect(afterRecovery.startedAt).toBeNull();
+      expect(afterRecovery.attempts).toBe(1); // NOT reset — attempts count toward max
+
+      // Process the job with a failing handler
+      // processNext claims it (attempts → 2) and the handler throws
+      const processed = await queue.processNext(async () => {
+        throw new Error("Handler failed after stale recovery");
+      });
+      expect(processed).toBe(true);
+
+      // attempts = 2 >= maxRetries = 2 → should be dead
+      const finished = queue.getJob(id)!;
+      expect(finished.status).toBe("dead");
+      expect(finished.attempts).toBe(2);
+      expect(finished.lastError).toContain("Handler failed after stale recovery");
+    });
+
+    it("stale recovery of max_retries=1 job also exhausts after one failing re-run", async () => {
+      const id = queue.enqueue({ type: "fragile", data: {} }, { maxRetries: 1 });
+      db.prepare(
+        "UPDATE job_queue SET status = 'running', started_at = ?, attempts = 0 WHERE id = ?",
+      ).run("2020-01-01T00:00:00.000Z", id);
+
+      queue.recoverStale(1);
+
+      // Claim + fail → attempts becomes 1 = maxRetries → dead
+      await queue.processNext(async () => { throw new Error("always fails"); });
+
+      const job = queue.getJob(id)!;
+      expect(job.status).toBe("dead");
+      expect(job.attempts).toBe(1);
     });
   });
 });

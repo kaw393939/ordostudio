@@ -127,3 +127,16 @@ export function buildHandlerMap(deps: HandlerDependencies): Map<string, JobHandl
   handlers.set("conversation.sweep", createConversationSweepHandler(deps.conversationSweepFn));
   return handlers;
 }
+
+/**
+ * The complete set of job type strings known to the handler registry.
+ * Use to construct a `knownTypes` set for SqliteJobQueue so that
+ * `enqueue` fails fast on unrecognised type strings.
+ */
+export const KNOWN_JOB_TYPES = new Set([
+  "email.send",
+  "newsletter.send",
+  "discord.sync",
+  "stripe.webhook.process",
+  "conversation.sweep",
+] as const);
