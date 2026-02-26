@@ -17,7 +17,7 @@
  */
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AGENT_OPENING_MESSAGE } from "@/lib/api/agent-system-prompt";
 
@@ -402,8 +402,13 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
+  /** Holds the id of the in-flight streaming assistant message; null when idle. */
+  const streamingIdRef = useRef<string | null>(null);
 
-  const hasUserMessages = messages.some((m) => m.role === "user");
+  const hasUserMessages = useMemo(
+    () => messages.some((m) => m.role === "user"),
+    [messages],
+  );
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -539,7 +544,9 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let assistantBuffer = "";
-      const streamingId = crypto.randomUUID();
+
+      streamingIdRef.current = crypto.randomUUID();
+      const streamingId = streamingIdRef.current;
 
       setMessages((prev) => [
         ...prev,
@@ -581,6 +588,7 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
       setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: "Connection lost. Please try again." }]);
     } finally {
       setIsStreaming(false);
+      streamingIdRef.current = null;
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }
@@ -594,7 +602,7 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
 
   // ── Shared panel body ──────────────────────────────────────────────────────
 
-  const isLastMsgStreaming = isStreaming && messages[messages.length - 1]?.content === "";
+  const isLastMsgStreaming = isStreaming && streamingIdRef.current !== null;
 
   const panelBody = (
     <>
