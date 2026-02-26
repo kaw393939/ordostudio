@@ -55,6 +55,7 @@ import { maestroScenarios } from "./scenarios/maestro";
 import { journeyFScenarios } from "./scenarios/journey-f";
 import { commerceScenarios } from "./scenarios/commerce";
 import { prospectScenarios } from "./scenarios/prospect";
+import { eventScenarios } from "./scenarios/events";
 import type { EvalScenario, EvalReport } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -213,6 +214,7 @@ Environment:
     ...journeyFScenarios,
     ...commerceScenarios,
     ...prospectScenarios,
+    ...eventScenarios,
   ];
 
   // Apply filters

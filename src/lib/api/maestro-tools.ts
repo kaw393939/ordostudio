@@ -475,6 +475,106 @@ export const MAESTRO_TOOLS: AgentToolDefinition[] = [
       },
     },
   },
+  // ---- Group G: Event Management ------------------------------------------
+  {
+    type: "function",
+    function: {
+      name: "create_event",
+      description:
+        "Create a new event (workshop, cohort, etc.) with a title, start time and capacity. Returns the new event ID.",
+      parameters: {
+        type: "object",
+        required: ["title", "start_at"],
+        properties: {
+          title: {
+            type: "string",
+            description: "Event title (2–200 chars)",
+          },
+          start_at: {
+            type: "string",
+            description: "ISO 8601 start datetime",
+          },
+          capacity: {
+            type: "number",
+            description: "Max attendees (1–500, default 20)",
+          },
+          description: {
+            type: "string",
+            description: "Optional event description (max 2000 chars)",
+          },
+          end_at: {
+            type: "string",
+            description: "ISO 8601 end datetime (optional, defaults to start_at)",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_event",
+      description:
+        "Update one or more fields of an existing event (title, times, capacity, status). At least one change field is required.",
+      parameters: {
+        type: "object",
+        required: ["eventId", "changes"],
+        properties: {
+          eventId: { type: "string", description: "ID of the event to update" },
+          changes: {
+            type: "object",
+            description:
+              "Fields to update. At least one property must be provided.",
+            properties: {
+              title: { type: "string" },
+              start_at: { type: "string" },
+              end_at: { type: "string" },
+              capacity: { type: "number" },
+              status: {
+                type: "string",
+                enum: ["draft", "published", "cancelled"],
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_event_attendance",
+      description:
+        "Get current attendance statistics for an event: capacity, registered count, cancelled count, remaining spots and fill percentage.",
+      parameters: {
+        type: "object",
+        required: ["eventId"],
+        properties: {
+          eventId: { type: "string", description: "ID of the event" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_registered_attendees",
+      description:
+        "List attendees of an event, optionally filtered by registration status (registered, cancelled, or all).",
+      parameters: {
+        type: "object",
+        required: ["eventId"],
+        properties: {
+          eventId: { type: "string", description: "ID of the event" },
+          status: {
+            type: "string",
+            enum: ["registered", "cancelled", "all"],
+            description: "Registration status filter (default: registered)",
+          },
+        },
+      },
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -582,6 +682,37 @@ const advanceDealStageSchema = z.object({
 const getCustomerTimelineSchema = z.object({
   userId: z.string().min(1),
   limit: z.number().int().min(1).max(50).default(20),
+});
+
+// Event Management schemas (Group G)
+const createEventSchema = z.object({
+  title: z.string().min(2).max(200),
+  start_at: z.string().datetime(),
+  capacity: z.number().int().min(1).max(500).default(20),
+  description: z.string().max(2000).optional(),
+  end_at: z.string().datetime().optional(),
+});
+
+const updateEventSchema = z.object({
+  eventId: z.string().min(1),
+  changes: z
+    .object({
+      title: z.string().min(2).max(200).optional(),
+      start_at: z.string().datetime().optional(),
+      end_at: z.string().datetime().optional(),
+      capacity: z.number().int().min(1).optional(),
+      status: z.enum(["draft", "published", "cancelled"]).optional(),
+    })
+    .refine((d) => Object.keys(d).length > 0, "At least one field required"),
+});
+
+const getEventAttendanceSchema = z.object({
+  eventId: z.string().min(1),
+});
+
+const listRegisteredAttendeesSchema = z.object({
+  eventId: z.string().min(1),
+  status: z.enum(["registered", "cancelled", "all"]).default("registered"),
 });
 
 // ---------------------------------------------------------------------------
@@ -1231,6 +1362,146 @@ LIMIT ?
           count: rows.length,
           ...(rows.length === 0 ? { note: "No activity found" } : {}),
         };
+      }
+
+      // ------------------------------------------------------------------
+      // Group G — Event Management
+      // ------------------------------------------------------------------
+
+      case "create_event": {
+        const { title, start_at, capacity, end_at } =
+          createEventSchema.parse(args);
+        const now = new Date().toISOString();
+        const eventId = `evt-${randomUUID().slice(0, 8)}`;
+        // Derive a unique slug from title + short id
+        const slugBase = title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "")
+          .slice(0, 60);
+        const slug = `${slugBase}-${eventId.slice(4)}`;
+        const resolvedEnd = end_at ?? start_at;
+
+        db.prepare(
+          `INSERT INTO events
+             (id, slug, title, start_at, end_at, timezone, status, capacity, created_by, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, 'UTC', 'draft', ?, NULL, ?, ?)`,
+        ).run(eventId, slug, title, start_at, resolvedEnd, capacity, now, now);
+
+        return { eventId, title, start_at, capacity, status: "draft" };
+      }
+
+      case "update_event": {
+        const { eventId, changes } = updateEventSchema.parse(args);
+
+        const existing = db
+          .prepare("SELECT id FROM events WHERE id = ?")
+          .get(eventId);
+        if (!existing) {
+          return { error: `Event not found: ${eventId}` };
+        }
+
+        const now = new Date().toISOString();
+        const setClauses: string[] = ["updated_at = ?"];
+        const params: unknown[] = [now];
+
+        const fieldMap: Record<string, string> = {
+          title: "title",
+          start_at: "start_at",
+          end_at: "end_at",
+          capacity: "capacity",
+          status: "status",
+        };
+
+        const updatedFields: string[] = [];
+        for (const [key, col] of Object.entries(fieldMap)) {
+          const val = (changes as Record<string, unknown>)[key];
+          if (val !== undefined) {
+            setClauses.push(`${col} = ?`);
+            params.push(val);
+            updatedFields.push(key);
+          }
+        }
+
+        params.push(eventId);
+        db.transaction(() => {
+          db.prepare(
+            `UPDATE events SET ${setClauses.join(", ")} WHERE id = ?`,
+          ).run(...params);
+        })();
+
+        return { eventId, updatedFields, updatedAt: now };
+      }
+
+      case "get_event_attendance": {
+        const { eventId } = getEventAttendanceSchema.parse(args);
+
+        const row = db
+          .prepare(
+            `
+SELECT
+  e.title,
+  e.capacity,
+  COUNT(er.id) FILTER (WHERE er.status = 'registered') AS registered,
+  COUNT(er.id) FILTER (WHERE er.status = 'cancelled')  AS cancelled,
+  e.capacity - COUNT(er.id) FILTER (WHERE er.status = 'registered') AS remaining
+FROM events e
+LEFT JOIN event_registrations er ON er.event_id = e.id
+WHERE e.id = ?
+GROUP BY e.id
+`,
+          )
+          .get(eventId) as
+          | {
+              title: string;
+              capacity: number;
+              registered: number;
+              cancelled: number;
+              remaining: number;
+            }
+          | undefined;
+
+        if (!row) {
+          return { error: `Event not found: ${eventId}` };
+        }
+
+        const fillPct =
+          row.capacity > 0
+            ? Math.round((row.registered / row.capacity) * 100)
+            : 0;
+
+        return { ...row, fillPct };
+      }
+
+      case "list_registered_attendees": {
+        const { eventId, status } =
+          listRegisteredAttendeesSchema.parse(args);
+
+        const rows = db
+          .prepare(
+            `
+SELECT er.id, er.status, u.email, u.id AS user_id
+FROM event_registrations er
+JOIN users u ON u.id = er.user_id
+WHERE er.event_id = ?
+  AND (? = 'all' OR er.status = ?)
+ORDER BY er.id ASC
+`,
+          )
+          .all(eventId, status, status) as Array<{
+          id: string;
+          status: string;
+          email: string;
+          user_id: string;
+        }>;
+
+        const attendees = rows.map((r) => ({
+          userId: r.user_id,
+          email: r.email,
+          status: r.status,
+        }));
+
+        return { eventId, attendees };
       }
 
       default:
