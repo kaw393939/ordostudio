@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { buildMetadata } from "@/lib/metadata";
-import IntakeChatWidget from "@/components/chat/intake-chat-widget";
+import ChatWidget from "@/components/chat/chat-widget";
 
 export const metadata = buildMetadata({
   title: "Apply",
@@ -42,7 +42,7 @@ export default function ApplyPage() {
           Tell us what you&apos;re trying to do. We&apos;ll figure out together if we&apos;re the
           right fit.
         </p>
-        <IntakeChatWidget mode="page" />
+        <ChatWidget mode="page" />
       </section>
 
       {/* Section 2 — Form fallback (below fold) */}

@@ -188,7 +188,7 @@ The homepage (`/`) is a full-screen conversational intake agent (no static marke
 **System prompt:** [`src/lib/api/agent-system-prompt.ts`](src/lib/api/agent-system-prompt.ts)
 **Agent loop:** [`src/lib/llm-anthropic.ts`](src/lib/llm-anthropic.ts)
 **Chat route:** [`src/app/api/v1/agent/chat/route.ts`](src/app/api/v1/agent/chat/route.ts)
-**Widget:** [`src/components/chat/intake-chat-widget.tsx`](src/components/chat/intake-chat-widget.tsx)
+**Widget:** [`src/components/chat/chat-widget.tsx`](src/components/chat/chat-widget.tsx)
 
 ---
 

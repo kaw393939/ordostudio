@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { Suspense } from "react";
-import IntakeChatWidget from "@/components/chat/intake-chat-widget";
+import ChatWidget from "@/components/chat/chat-widget";
 
 /**
  * Renders the floating chat widget on all pages EXCEPT the homepage,
@@ -13,7 +13,7 @@ export function FloatingChatGate() {
   if (pathname === "/") return null;
   return (
     <Suspense>
-      <IntakeChatWidget mode="floating" />
+      <ChatWidget mode="floating" />
     </Suspense>
   );
 }

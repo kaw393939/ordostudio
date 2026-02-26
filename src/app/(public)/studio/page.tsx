@@ -18,10 +18,16 @@ export default function StudioPage() {
         <p className="mt-2 type-body text-text-secondary">
           AI-capable engineers. Spec-driven method. Audit-logged deliverables.
         </p>
-        <div className="mt-4">
+        <div className="mt-4 flex flex-col items-start gap-3">
           <Button asChild intent="primary">
             <Link href="/services/request">Start a project →</Link>
           </Button>
+          <Link
+            href="/join"
+            className="type-meta text-text-muted hover:text-text-default transition-colors"
+          >
+            Not sure which path fits you? →
+          </Link>
         </div>
       </section>
 
