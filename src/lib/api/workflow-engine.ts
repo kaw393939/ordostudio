@@ -12,6 +12,7 @@ import type Database from "better-sqlite3";
 import type { StoredFeedEvent } from "@/lib/api/feed-events";
 import { sendEmailAsync } from "@/platform/email-queue-bridge";
 import { resolveTransactionalEmailPort } from "@/platform/email";
+import { getLogger } from "@/platform/logger";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -30,7 +31,7 @@ interface WorkflowRule {
 
 export interface ConditionSpec {
   field: string;
-  operator: "eq" | "neq" | "contains" | "gt" | "lt";
+  operator: "eq" | "neq" | "contains" | "gt" | "lt" | "gte" | "lte";
   value: string | number;
 }
 
@@ -84,6 +85,11 @@ export function evaluateCondition(condition: ConditionSpec, event: StoredFeedEve
   const eventVal = String(rawValue ?? "");
   const condVal = String(condition.value);
 
+  // Numeric coercion uses the string-coerced value (eventVal) not rawValue
+  // so that null/undefined fields consistently evaluate as 0 (not NaN).
+  const numericVal = Number(eventVal);
+  const numericCond = Number(condition.value);
+
   switch (condition.operator) {
     case "eq":
       return eventVal === condVal;
@@ -92,11 +98,20 @@ export function evaluateCondition(condition: ConditionSpec, event: StoredFeedEve
     case "contains":
       return eventVal.includes(condVal);
     case "gt":
-      return Number(rawValue) > Number(condition.value);
+      return numericVal > numericCond;
     case "lt":
-      return Number(rawValue) < Number(condition.value);
-    default:
+      return numericVal < numericCond;
+    case "gte":
+      return numericVal >= numericCond;
+    case "lte":
+      return numericVal <= numericCond;
+    default: {
+      getLogger().warn(
+        { operator: (condition as ConditionSpec).operator, field: condition.field },
+        "workflow: unknown condition operator — rule will be skipped",
+      );
       return false;
+    }
   }
 }
 
