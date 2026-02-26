@@ -24,6 +24,7 @@ import {
   type FileAttachment as Attachment,
   useFileAttachments,
 } from "./use-file-attachments";
+import { parseSSEStream } from "@/lib/parse-sse-stream";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -38,14 +39,7 @@ interface Message {
   attachments?: Attachment[];
 }
 
-interface SSEDelta {
-  delta?: string;
-  tool_call?: { name: string; args: unknown };
-  tool_result?: { name: string; result: unknown };
-  done?: boolean;
-  conversation_id?: string;
-  intake_submitted?: boolean;
-}
+// SSEDelta type handled internally by parseSSEStream — no longer needed here
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -539,8 +533,6 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
       }
 
       const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let assistantBuffer = "";
 
       streamingIdRef.current = crypto.randomUUID();
       const streamingId = streamingIdRef.current;
@@ -550,37 +542,33 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
         { id: streamingId, role: "assistant", content: "" },
       ]);
 
-      let buf = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop() ?? "";
+      let assistantBuffer = "";
 
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          let parsed: SSEDelta;
-          try { parsed = JSON.parse(line.slice(6)) as SSEDelta; }
-          catch { continue; }
-
-          if (parsed.delta) {
-            assistantBuffer += parsed.delta;
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === streamingId
-                  ? { ...m, content: assistantBuffer }
-                  : m,
-              ),
-            );
-          }
-
-          if (parsed.done) {
-            if (parsed.conversation_id) setConversationId(parsed.conversation_id);
-            if (parsed.intake_submitted) setSubmitted(true);
-          }
-        }
-      }
+      await parseSSEStream(reader, {
+        onDelta(delta) {
+          assistantBuffer += delta;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === streamingId ? { ...m, content: assistantBuffer } : m,
+            ),
+          );
+        },
+        onDone({ conversationId: cid, intakeSubmitted }) {
+          if (cid) setConversationId(cid);
+          if (intakeSubmitted) setSubmitted(true);
+        },
+        onToolCall(call) {
+          // Future: surface tool activity in UI
+          console.debug("[Chat] tool call:", call.name);
+        },
+        onToolResult(result) {
+          // Future: surface tool result in UI
+          console.debug("[Chat] tool result:", result.name);
+        },
+        onError(err) {
+          console.error("[Chat] SSE error:", err);
+        },
+      });
     } catch {
       setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: "Connection lost. Please try again." }]);
     } finally {
