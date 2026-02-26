@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { openCliDb, appendAuditLog } from "@/platform/runtime";
 import { resolveConfig } from "@/platform/config";
 import { Money } from "@/core/domain/money";
-import { AFFILIATE_COMMISSION_RATE } from "@/lib/constants/commissions";
+import { AFFILIATE_COMMISSION_RATE, PROVIDER_PAYOUT_RATE } from "@/lib/constants/commissions";;
 import {
   transitionLedgerStatus,
   type LedgerEntryStatus,
@@ -37,7 +37,6 @@ export class LedgerPreconditionError extends Error {
 }
 
 const REFERRER_COMMISSION_RATE = AFFILIATE_COMMISSION_RATE;
-const PROVIDER_PAYOUT_RATE = 0.6;
 
 export const ensureLedgerEarnedForDeliveredDeal = (db: ReturnType<typeof openCliDb>, input: {
   dealId: string;
