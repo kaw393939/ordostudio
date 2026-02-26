@@ -302,6 +302,92 @@ async function runWorkflowScenario(
   }
 }
 
+async function runContentRetrievalScenario(
+  scenario: Extract<EvalScenario, { type: "content-retrieval" }>,
+  apiKey: string,
+): Promise<EvalResult> {
+  const start = Date.now();
+  const evalDb = await setupEvalDb();
+
+  try {
+    // Async preSetup — runs the content indexer
+    if (scenario.preSetup) {
+      await scenario.preSetup(evalDb.db);
+    }
+
+    process.env.APPCTL_DB_FILE = evalDb.dbPath;
+    process.env.APPCTL_ENV = "local";
+
+    const history: Array<{ role: "user" | "assistant"; text: string }> = [];
+    const turnResults: TurnResult[] = [];
+    const toolContext = { userRole: scenario.userRole ?? null };
+
+    for (let i = 0; i < scenario.turns.length; i++) {
+      const turn = scenario.turns[i];
+
+      const claudeResult = await runClaudeAgentLoop({
+        apiKey,
+        systemPrompt: AGENT_SYSTEM_PROMPT,
+        history,
+        userMessage: turn.userMessage,
+        tools: AGENT_TOOL_DEFINITIONS,
+        executeToolFn: async (name, args) =>
+          executeAgentTool(name, args, undefined, toolContext),
+      });
+
+      const toolsCalledNames = claudeResult.toolEvents
+        .filter((e) => e.type === "tool_call")
+        .map((e) => e.name);
+
+      const checkResults: CheckResult[] = (turn.responseChecks ?? []).map(
+        (check) => evalResponseCheck(check, claudeResult.assistantText, toolsCalledNames),
+      );
+
+      const turnPassed = checkResults.every((r) => r.passed);
+
+      turnResults.push({
+        turn: i + 1,
+        userMessage: turn.userMessage,
+        assistantText: claudeResult.assistantText,
+        toolsCalledNames,
+        checkResults,
+        passed: turnPassed,
+      });
+
+      history.push({ role: "user", text: turn.userMessage });
+      history.push({ role: "assistant", text: claudeResult.assistantText });
+    }
+
+    // Reload fresh connection for DB assertions
+    const freshDb = new Database(evalDb.dbPath);
+    const dbAssertionResults: CheckResult[] = (scenario.dbAssertions ?? []).map(
+      (a) => evalDbAssertion(a, freshDb),
+    );
+    freshDb.close();
+
+    const allChecksPassed =
+      turnResults.every((t) => t.passed) &&
+      dbAssertionResults.every((r) => r.passed);
+
+    return {
+      scenario,
+      passed: allChecksPassed,
+      turns: turnResults,
+      dbAssertionResults,
+      durationMs: Date.now() - start,
+    };
+  } catch (err) {
+    return {
+      scenario,
+      passed: false,
+      durationMs: Date.now() - start,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  } finally {
+    await teardownEvalDb(evalDb);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -321,6 +407,8 @@ export async function runScenario(scenario: EvalScenario): Promise<EvalResult> {
       return runTriageScenario(scenario);
     case "workflow":
       return runWorkflowScenario(scenario);
+    case "content-retrieval":
+      return runContentRetrievalScenario(scenario, apiKey);
   }
 }
 

@@ -1588,6 +1588,45 @@ INSERT OR IGNORE INTO roles (id, name) VALUES
   ('role_staff',                'STAFF');
 `,
   },
+  {
+    name: "045_embeddings",
+    sql: `
+CREATE TABLE IF NOT EXISTS embeddings (
+  id            TEXT PRIMARY KEY,
+  corpus        TEXT NOT NULL,
+  source_id     TEXT NOT NULL,
+  chunk_index   INTEGER NOT NULL DEFAULT 0,
+  chunk_text    TEXT NOT NULL,
+  visibility    TEXT NOT NULL DEFAULT 'PUBLIC',
+  user_id       TEXT,
+  embedding     BLOB NOT NULL,
+  metadata_json TEXT,
+  created_at    TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_embeddings_corpus_source ON embeddings(corpus, source_id);
+CREATE INDEX IF NOT EXISTS idx_embeddings_user ON embeddings(user_id, corpus);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_embeddings_source_chunk ON embeddings(source_id, chunk_index);
+`,
+  },
+  {
+    name: "046_search_analytics",
+    sql: `
+CREATE TABLE IF NOT EXISTS search_analytics (
+  id           TEXT PRIMARY KEY,
+  query        TEXT NOT NULL,
+  corpus       TEXT NOT NULL DEFAULT 'content',
+  result_count INTEGER NOT NULL DEFAULT 0,
+  top_source   TEXT,
+  top_score    REAL,
+  user_id      TEXT,
+  session_id   TEXT,
+  source       TEXT NOT NULL DEFAULT 'intake-agent',
+  created_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_search_analytics_created ON search_analytics(created_at);
+`,
+  },
 ];
 
 const ensureMetaTable = (db: Database.Database): void => {

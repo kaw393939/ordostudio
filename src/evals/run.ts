@@ -50,6 +50,7 @@ import { teardownAllEvalDbs } from "./db";
 import { intakeAgentScenarios } from "./scenarios/intake-agent";
 import { triageScenarios } from "./scenarios/triage";
 import { workflowScenarios } from "./scenarios/workflow";
+import { contentRetrievalScenarios } from "./scenarios/content-retrieval";
 import type { EvalScenario, EvalReport } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -192,10 +193,18 @@ Environment:
   }
 
   // Gather all scenarios
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (!openaiKey) {
+    console.warn(
+      "\x1b[33m⚠ Skipping content-retrieval evals — OPENAI_API_KEY not set\x1b[0m",
+    );
+  }
+
   let allScenarios: EvalScenario[] = [
     ...intakeAgentScenarios,
     ...triageScenarios,
     ...workflowScenarios,
+    ...(openaiKey ? contentRetrievalScenarios : []),
   ];
 
   // Apply filters

@@ -1,3 +1,7 @@
+---
+title: Frequently Asked Questions
+visibility: PUBLIC
+---
 # Frequently Asked Questions
 
 ## About Studio Ordo

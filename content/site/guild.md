@@ -1,3 +1,7 @@
+---
+title: The Studio Ordo Guild
+visibility: PUBLIC
+---
 # The Studio Ordo Guild
 
 The guild is the talent network that executes commissioned project work. Members are professionals who have trained with Studio Ordo or have been accepted based on demonstrated capability.

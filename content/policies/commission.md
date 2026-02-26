@@ -1,3 +1,7 @@
+---
+title: Commission Policy
+visibility: AUTHENTICATED
+---
 # Commission Policy
 
 ## Studio Ordo Commission Rate

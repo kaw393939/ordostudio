@@ -9,6 +9,18 @@ import { dirname, resolve } from "node:path";
 import Database from "better-sqlite3";
 import type { AppConfig } from "./types";
 
+// Load sqlite-vec extension for vector similarity queries.
+// The import is dynamic so that builds without the native binary still work;
+// any error is silently suppressed and vector search falls back to keyword mode.
+type SqliteVecModule = { load: (db: Database.Database) => void };
+let sqliteVec: SqliteVecModule | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  sqliteVec = require("sqlite-vec") as SqliteVecModule;
+} catch {
+  // sqlite-vec not available (e.g. unsupported platform); fall back to keyword search
+}
+
 /**
  * Open (or create) a SQLite database with standard pragmas applied.
  *
@@ -23,6 +35,16 @@ export const openDb = (config: AppConfig): Database.Database => {
   db.pragma(`busy_timeout = ${config.db.busyTimeoutMs}`);
   db.pragma("foreign_keys = ON");
   db.pragma("journal_mode = WAL");
+
+  // Load vector extension if available
+  if (sqliteVec) {
+    try {
+      sqliteVec.load(db);
+    } catch {
+      // SQLite version or platform incompatibility — continue without vec functions
+    }
+  }
+
   return db;
 };
 

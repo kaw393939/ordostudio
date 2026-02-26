@@ -810,6 +810,33 @@ const createProgram = (io: CliIo): Command => {
       );
     });
 
+  program
+    .command("index-content")
+    .description("Index all content/**/*.md files into the embeddings table using OpenAI embeddings")
+    .action(async () => {
+      const config = await resolveRuntimeConfig();
+      const { indexContentCorpus } = await import("../lib/vector/indexer");
+      const { openDb } = await import("../platform/db");
+      const db = openDb(config);
+      try {
+        const result = await indexContentCorpus(db);
+        if (result.alreadyIndexed) {
+          writeText(io, `Content already indexed (${result.chunks} chunks).`);
+        } else {
+          writeText(io, `Indexed ${result.chunks} chunks from ${result.files} files`);
+          outputResult(
+            "index-content",
+            config.env,
+            result,
+            `index-content: chunks=${result.chunks} files=${result.files}`,
+            config.output.defaultFormat === "json",
+          );
+        }
+      } finally {
+        db.close();
+      }
+    });
+
   return program;
 };
 

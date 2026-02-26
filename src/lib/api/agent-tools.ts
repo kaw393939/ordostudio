@@ -36,6 +36,16 @@ export interface ToolCallResult {
   error?: string;
 }
 
+/** Optional caller context threaded through the tool executor. */
+export interface AgentToolContext {
+  /** Role of the calling user — used for RBAC content visibility filtering. */
+  userRole?: string | null;
+  /** Anonymous session ID for analytics. */
+  sessionId?: string;
+  /** Authenticated user ID. */
+  userId?: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Registry types
 // ---------------------------------------------------------------------------
@@ -70,7 +80,7 @@ type AnyToolEntry = ToolEntry<any>;
 interface ToolEntry<TArgs> {
   definition: AgentToolDefinition;
   schema: z.ZodSchema<TArgs>;
-  execute: (args: TArgs, db: Db | null) => Promise<unknown>;
+  execute: (args: TArgs, db: Db | null, context?: AgentToolContext) => Promise<unknown>;
 }
 
 /** TypeScript enforces that every ToolName has an entry in this type. */
@@ -103,8 +113,8 @@ const TOOL_REGISTRY: ToolRegistry = {
       },
     },
     schema: z.object({ query: z.string().min(1) }),
-    execute: async ({ query }: { query: string }) => {
-      const results = await searchContent(query, 4);
+    execute: async ({ query }: { query: string }, _db: Db | null, context?: AgentToolContext) => {
+      const results = await searchContent(query, 4, context?.userRole ?? null);
       return results.map((r) => ({
         file: r.file,
         heading: r.heading,
@@ -377,11 +387,13 @@ export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = Object.values(
  * @param args - Raw (unvalidated) args from the LLM.
  * @param db - Optional DB connection from the request. DB-using tools prefer this
  *             over opening their own connection.
+ * @param context - Optional caller context (userRole, sessionId, userId).
  */
 export async function executeAgentTool(
   toolName: string,
   args: unknown,
   db?: Db,
+  context?: AgentToolContext,
 ): Promise<unknown> {
   const entry = TOOL_REGISTRY[toolName as ToolName];
 
@@ -399,5 +411,5 @@ export async function executeAgentTool(
     return { error: `invalid arguments — ${msg}` };
   }
 
-  return entry.execute(parsed.data as never, db ?? null);
+  return entry.execute(parsed.data as never, db ?? null, context);
 }

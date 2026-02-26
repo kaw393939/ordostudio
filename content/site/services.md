@@ -1,3 +1,7 @@
+---
+title: Studio Ordo Services
+visibility: PUBLIC
+---
 # Studio Ordo Services
 
 Studio Ordo offers two categories of service: training and project commissions.

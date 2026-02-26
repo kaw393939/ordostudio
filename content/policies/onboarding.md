@@ -1,3 +1,7 @@
+---
+title: Onboarding Policy
+visibility: AUTHENTICATED
+---
 # Onboarding Policy
 
 ## What Happens After You Are Accepted

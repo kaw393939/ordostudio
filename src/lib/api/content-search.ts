@@ -1,5 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
+import { vectorSearch, type VectorSearchOptions } from "../vector/search";
 
 export interface ContentResult {
   file: string;
@@ -50,9 +51,9 @@ function scoreChunk(chunk: string, queryTokens: string[]): number {
   return score;
 }
 
-export async function searchContent(
+export async function keywordSearchContent(
   query: string,
-  limit = 5
+  limit = 5,
 ): Promise<ContentResult[]> {
   if (!query.trim()) return [];
 
@@ -83,11 +84,64 @@ export async function searchContent(
       const score = scoreChunk(chunk, queryTokens);
       if (score > 0) {
         // Trim excerpt to ~200 chars
-        const excerpt = chunk.slice(0, 200).replace(/\n+/g, " ").trim() + (chunk.length > 200 ? "…" : "");
+        const excerpt = chunk.slice(0, 200).replace(/\n+/g, " ").trim() + (chunk.length > 200 ? "\u2026" : "");
         results.push({ file: relFile, heading, excerpt, score });
       }
     }
   }
 
   return results.sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+// ---------------------------------------------------------------------------
+// Public API — delegates to vectorSearch (falls back to keyword automatically)
+// ---------------------------------------------------------------------------
+
+/**
+ * Search the content knowledge base.
+ *
+ * Delegates to vectorSearch(), which uses cosine similarity when
+ * OPENAI_API_KEY is set and the embeddings table is populated, otherwise
+ * falls back to keyword scoring automatically.
+ *
+ * @param query     Natural language search query
+ * @param limit     Max results (default 5)
+ * @param userRole  Caller's role for RBAC visibility gating (default null = PUBLIC)
+ * @param opts      Extra options forwarded to vectorSearch
+ */
+export async function searchContent(
+  query: string,
+  limit = 5,
+  userRole: string | null = null,
+  opts?: Partial<VectorSearchOptions>,
+): Promise<ContentResult[]> {
+  if (!query.trim()) return [];
+
+  const response = await vectorSearch({
+    query,
+    limit,
+    userRole,
+    source: "intake-agent",
+    ...opts,
+  });
+
+  return response.results.map((r) => {
+    // Extract heading from the first line of the chunk (chunker prepends it)
+    const firstLine = r.excerpt.split("\n")[0].trim();
+    const heading = /^#{2,3} /.test(firstLine)
+      ? firstLine.replace(/^#+\s*/, "")
+      : path.basename(r.file, ".md");
+
+    // Make file path relative to content dir for backward compat
+    const relFile = r.file.includes("/content/")
+      ? r.file.slice(r.file.indexOf("/content/") + "/content/".length)
+      : r.file;
+
+    return {
+      file: relFile,
+      heading,
+      excerpt: r.excerpt.slice(0, 400).replace(/\n+/g, " ").trim(),
+      score: Math.max(0, 1 - r.score),
+    };
+  });
 }

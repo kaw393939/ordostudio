@@ -1,3 +1,7 @@
+---
+title: About Studio Ordo
+visibility: PUBLIC
+---
 # About Studio Ordo
 
 Studio Ordo is a training and commissions studio focused on AI-directed software delivery. We exist to help professionals and teams get ahead of the shift that is already happening.

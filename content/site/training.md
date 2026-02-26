@@ -1,3 +1,7 @@
+---
+title: Maestro Training Program
+visibility: PUBLIC
+---
 # Maestro Training Program
 
 ## What the Program Is

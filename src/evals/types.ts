@@ -91,6 +91,24 @@ export type EvalScenario =
         description?: string;
       };
       dbAssertions: DbAssertion[];
+    }
+  | {
+      id: string;
+      name: string;
+      type: "content-retrieval";
+      description: string;
+      /**
+       * Role of the simulated caller.
+       * null / undefined = anonymous (PUBLIC content only).
+       */
+      userRole?: string | null;
+      turns: AgentTurn[];
+      /**
+       * Async setup hook. Typically runs the content indexer so the
+       * embeddings table is populated before the agent is called.
+       */
+      preSetup?: (db: Database.Database) => Promise<void>;
+      dbAssertions?: DbAssertion[];
     };
 
 // ---------------------------------------------------------------------------
