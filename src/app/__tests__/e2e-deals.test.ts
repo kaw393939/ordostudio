@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import Database from "better-sqlite3";
 
 import { POST as postIntake } from "../api/v1/intake/route";
 import { POST as postCreateDeal } from "../api/v1/admin/deals/route";
@@ -175,5 +176,200 @@ describe("e2e deals queue + maestro gates", () => {
     );
 
     expect(startWithoutPaid.status).toBe(412);
+  });
+
+  it("assignDealAdmin rejects transition from DELIVERED → ASSIGNED (state machine guard)", async () => {
+    // Create offer
+    await postOffer(
+      new Request("http://localhost:3000/api/v1/offers", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+          cookie: fixture.adminCookie,
+        },
+        body: JSON.stringify({
+          slug: "advisory-sm",
+          title: "Advisory SM",
+          summary: "Advisory consult",
+          price_cents: 25000,
+          currency: "USD",
+          duration_label: "60 minutes",
+          refund_policy_key: "standard",
+          audience: "INDIVIDUAL",
+          delivery_mode: "ONLINE",
+          booking_url: "https://example.com/book/advisory-sm",
+          outcomes: ["Plan"],
+          status: "ACTIVE",
+        }),
+      }),
+    );
+
+    // Create intake
+    const intakeRes = await postIntake(
+      new Request("http://localhost:3000/api/v1/intake", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+        },
+        body: JSON.stringify({
+          offer_slug: "advisory-sm",
+          audience: "INDIVIDUAL",
+          contact_name: "SM Lead",
+          contact_email: "sm-lead@example.com",
+          goals: "State machine test",
+        }),
+      }),
+    );
+    expect(intakeRes.status).toBe(201);
+    const { id: intakeId } = (await intakeRes.json()) as { id: string };
+
+    // Create deal
+    const dealRes = requireResponse(
+      await postCreateDeal(
+        new Request("http://localhost:3000/api/v1/admin/deals", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            origin: "http://localhost:3000",
+            cookie: fixture.adminCookie,
+          },
+          body: JSON.stringify({ intake_id: intakeId }),
+        }),
+      ),
+    );
+    expect(dealRes.status).toBe(201);
+    const { id: dealId } = (await dealRes.json()) as { id: string };
+
+    // Advance to ASSIGNED
+    const assignRes = requireResponse(
+      await patchDeal(
+        new Request(`http://localhost:3000/api/v1/admin/deals/${dealId}`, {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            origin: "http://localhost:3000",
+            cookie: fixture.adminCookie,
+          },
+          body: JSON.stringify({
+            action: "assign",
+            provider_user_id: fixture.userId,
+            maestro_user_id: fixture.adminId,
+          }),
+        }),
+        { params: Promise.resolve({ id: dealId }) },
+      ),
+    );
+    expect(assignRes.status).toBe(200);
+
+    // Force deal to DELIVERED via direct DB manipulation (bypasses payment gates
+    // that require a real Stripe webhook in integration tests).
+    const db = new Database(fixture.dbPath);
+    db.prepare("UPDATE deals SET status = 'DELIVERED', updated_at = ? WHERE id = ?").run(
+      new Date().toISOString(),
+      dealId,
+    );
+    db.close();
+
+    // Now attempt to reassign — must be rejected with 422
+    const badAssign = requireResponse(
+      await patchDeal(
+        new Request(`http://localhost:3000/api/v1/admin/deals/${dealId}`, {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            origin: "http://localhost:3000",
+            cookie: fixture.adminCookie,
+          },
+          body: JSON.stringify({
+            action: "assign",
+            provider_user_id: fixture.userId,
+            maestro_user_id: fixture.adminId,
+          }),
+        }),
+        { params: Promise.resolve({ id: dealId }) },
+      ),
+    );
+
+    expect(badAssign.status).toBe(422);
+  });
+
+  it("createDealFromIntake returns 409 DealConflictError when same intake submitted twice", async () => {
+    await postOffer(
+      new Request("http://localhost:3000/api/v1/offers", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+          cookie: fixture.adminCookie,
+        },
+        body: JSON.stringify({
+          slug: "advisory-dup",
+          title: "Advisory Dup",
+          summary: "Advisory consult",
+          price_cents: 25000,
+          currency: "USD",
+          duration_label: "60 minutes",
+          refund_policy_key: "standard",
+          audience: "INDIVIDUAL",
+          delivery_mode: "ONLINE",
+          booking_url: "https://example.com/book/advisory-dup",
+          outcomes: ["Plan"],
+          status: "ACTIVE",
+        }),
+      }),
+    );
+
+    const intakeRes = await postIntake(
+      new Request("http://localhost:3000/api/v1/intake", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+        },
+        body: JSON.stringify({
+          offer_slug: "advisory-dup",
+          audience: "INDIVIDUAL",
+          contact_name: "Dup Lead",
+          contact_email: "dup-lead@example.com",
+          goals: "Duplicate test",
+        }),
+      }),
+    );
+    expect(intakeRes.status).toBe(201);
+    const { id: intakeId } = (await intakeRes.json()) as { id: string };
+
+    // First creation — should succeed
+    const first = requireResponse(
+      await postCreateDeal(
+        new Request("http://localhost:3000/api/v1/admin/deals", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            origin: "http://localhost:3000",
+            cookie: fixture.adminCookie,
+          },
+          body: JSON.stringify({ intake_id: intakeId }),
+        }),
+      ),
+    );
+    expect(first.status).toBe(201);
+
+    // Second creation with same intake_id — must return 409, not 500
+    const second = requireResponse(
+      await postCreateDeal(
+        new Request("http://localhost:3000/api/v1/admin/deals", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            origin: "http://localhost:3000",
+            cookie: fixture.adminCookie,
+          },
+          body: JSON.stringify({ intake_id: intakeId }),
+        }),
+      ),
+    );
+    expect(second.status).toBe(409);
   });
 });

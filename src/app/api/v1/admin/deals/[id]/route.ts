@@ -11,6 +11,7 @@ import {
   updateDealStatus,
   type DealStatus,
 } from "../../../../../../lib/api/deals";
+import { InvalidInputError } from "../../../../../../core/domain/errors";
 import { asUserActor } from "../../../../../../lib/api/actor";
 import { withRequestLogging } from "../../../../../../lib/api/request-logging";
 import { withRateLimit } from "../../../../../../lib/api/rate-limit-wrapper";
@@ -239,6 +240,18 @@ async function _PATCH(request: Request, context: { params: Promise<{ id: string 
           title: "Precondition Failed",
           status: 412,
           detail: `Deal guardrail: ${error.reason}`,
+        },
+        request,
+      );
+    }
+
+    if (error instanceof InvalidInputError) {
+      return problem(
+        {
+          type: "https://lms-219.dev/problems/invalid-input",
+          title: "Unprocessable Entity",
+          status: 422,
+          detail: error.message,
         },
         request,
       );

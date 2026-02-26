@@ -174,35 +174,40 @@ export const createDealFromIntake = (input: {
       throw new DealPreconditionError("offer_inactive");
     }
 
-    const existing = db.prepare("SELECT id FROM deals WHERE intake_id = ?").get(input.intakeId) as
-      | { id: string }
-      | undefined;
-    if (existing) {
-      throw new DealConflictError("already_exists");
-    }
-
     const now = new Date().toISOString();
     const id = randomUUID();
     const status: DealStatus = "QUEUED";
 
     const referrerUserId = referrerForIntake(db, input.intakeId);
 
-    db.prepare(
-      `
+    // Use INSERT and catch the UNIQUE constraint violation rather than a
+    // racy SELECT-then-INSERT. The DB enforces `intake_id UNIQUE`.
+    try {
+      db.prepare(
+        `
 INSERT INTO deals (
   id, intake_id, offer_slug, status, referrer_user_id, requested_provider_user_id, provider_user_id, maestro_user_id, created_at, updated_at
 ) VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)
 `,
-    ).run(
-      id,
-      input.intakeId,
-      intake.offer_slug,
-      status,
-      referrerUserId,
-      input.requestedProviderUserId ?? null,
-      now,
-      now,
-    );
+      ).run(
+        id,
+        input.intakeId,
+        intake.offer_slug,
+        status,
+        referrerUserId,
+        input.requestedProviderUserId ?? null,
+        now,
+        now,
+      );
+    } catch (err: unknown) {
+      if (
+        err instanceof Error &&
+        err.message.includes("UNIQUE constraint failed: deals.intake_id")
+      ) {
+        throw new DealConflictError("already_exists");
+      }
+      throw err;
+    }
 
     pushHistory(db, {
       dealId: id,
@@ -370,6 +375,10 @@ export const assignDealAdmin = (input: {
 
   try {
     const deal = ensureDeal(db, input.dealId);
+
+    // Enforce state machine invariant. QUEUED → ASSIGNED is the only valid
+    // first-time assignment; re-assigning from ASSIGNED is a self-transition (no-op check).
+    assertDealTransition(deal.status, "ASSIGNED");
 
     const now = new Date().toISOString();
     db.prepare(
