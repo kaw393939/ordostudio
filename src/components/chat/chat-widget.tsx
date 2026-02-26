@@ -19,6 +19,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { AGENT_OPENING_MESSAGE } from "@/lib/api/agent-system-prompt";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -34,6 +35,7 @@ interface Attachment {
 }
 
 interface Message {
+  id: string;
   role: "user" | "assistant";
   content: string;
   attachments?: Attachment[];
@@ -52,8 +54,7 @@ interface SSEDelta {
 // Constants
 // ---------------------------------------------------------------------------
 
-const OPENING_MESSAGE =
-  "We're a small training and consulting studio. I'm here to figure out if we're the right fit. What brings you here today?";
+// OPENING_MESSAGE replaced by AGENT_OPENING_MESSAGE imported from agent-system-prompt.ts
 
 const SUGGESTIONS = [
   "What do you offer?",
@@ -388,8 +389,8 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
     if (mode === "floating" && searchParams.get("chat") === "open") setIsOpen(true);
   }, [mode, searchParams]);
 
-  const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: OPENING_MESSAGE },
+  const [messages, setMessages] = useState<Message[]>(() => [
+    { id: crypto.randomUUID(), role: "assistant", content: AGENT_OPENING_MESSAGE },
   ]);
   const [input, setInput] = useState("");
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
@@ -491,8 +492,17 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
     setInput("");
     setPendingAttachments([]);
 
+    // Revoke blob preview URLs immediately after clearing — the image data is already
+    // in currentAttachments.data (base64) so the blob: URL is no longer needed.
+    for (const a of currentAttachments) {
+      if (a.preview) {
+        URL.revokeObjectURL(a.preview);
+      }
+    }
+
     // Optimistic UI: show sent message immediately
     const sentMessage: Message = {
+      id: crypto.randomUUID(),
       role: "user",
       content: text,
       attachments: currentAttachments.length > 0 ? currentAttachments : undefined,
@@ -521,7 +531,7 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
       });
 
       if (!res.ok || !res.body) {
-        setMessages((prev) => [...prev, { role: "assistant", content: "Something went wrong. Please try again." }]);
+        setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: "Something went wrong. Please try again." }]);
         setIsStreaming(false);
         return;
       }
@@ -529,12 +539,12 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let assistantBuffer = "";
-      let msgIndex = -1;
+      const streamingId = crypto.randomUUID();
 
-      setMessages((prev) => {
-        msgIndex = prev.length;
-        return [...prev, { role: "assistant", content: "" }];
-      });
+      setMessages((prev) => [
+        ...prev,
+        { id: streamingId, role: "assistant", content: "" },
+      ]);
 
       let buf = "";
       while (true) {
@@ -552,13 +562,13 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
 
           if (parsed.delta) {
             assistantBuffer += parsed.delta;
-            setMessages((prev) => {
-              const updated = [...prev];
-              if (msgIndex >= 0 && msgIndex < updated.length) {
-                updated[msgIndex] = { role: "assistant", content: assistantBuffer };
-              }
-              return updated;
-            });
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === streamingId
+                  ? { ...m, content: assistantBuffer }
+                  : m,
+              ),
+            );
           }
 
           if (parsed.done) {
@@ -568,7 +578,7 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
         }
       }
     } catch {
-      setMessages((prev) => [...prev, { role: "assistant", content: "Connection lost. Please try again." }]);
+      setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: "Connection lost. Please try again." }]);
     } finally {
       setIsStreaming(false);
       setTimeout(() => inputRef.current?.focus(), 50);

@@ -51,3 +51,11 @@ Senior individual engineers want career acceleration and a differentiated portfo
 Startup CTOs with small teams want competitive advantage without betting the company. Their core anxiety: "Every engineering week has to count."
 
 VOICE: Precise, calm, capable, inviting. Short sentences. One question at a time. No hype. No fake urgency. No guaranteed outcomes. When making a claim, name an artifact, cite a real number, or reference a real credential.`;
+
+/**
+ * Single source of truth for the agent's opening message.
+ * Imported by both the chat route (server) and ChatWidget (client) so they
+ * always show identical copy. Update here — both sides pick it up.
+ */
+export const AGENT_OPENING_MESSAGE =
+  "We're a small training and consulting studio. I'm here to figure out if we're the right fit. What brings you here today?";

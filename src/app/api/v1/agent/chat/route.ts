@@ -13,7 +13,7 @@ import { openCliDb } from "@/platform/runtime";
 import { resolveConfig } from "@/platform/config";
 import { AGENT_TOOL_DEFINITIONS, executeAgentTool } from "@/lib/api/agent-tools";
 import { runClaudeAgentLoop } from "@/lib/llm-anthropic";
-import { AGENT_SYSTEM_PROMPT as BASE_SYSTEM_PROMPT } from "@/lib/api/agent-system-prompt";
+import { AGENT_SYSTEM_PROMPT as BASE_SYSTEM_PROMPT, AGENT_OPENING_MESSAGE } from "@/lib/api/agent-system-prompt";
 import { parseCookieHeader } from "@/lib/api/referrals";
 import { getSessionUserFromRequest } from "@/lib/api/auth";
 
@@ -125,8 +125,7 @@ ${lines.map((l) => `- ${l}`).join("\n")}`;
 }
 const MAX_TOOL_ROUNDS = 4;
 
-const OPENING_MESSAGE =
-  "We're a small training and commissions studio. I'm here to figure out if we're the right fit for what you're trying to do. What brings you here?";
+// Opening message is the canonical export from agent-system-prompt.ts (AGENT_OPENING_MESSAGE)
 
 // ---------------------------------------------------------------------------
 // SSE helpers
@@ -176,7 +175,7 @@ function createConversation(
   const messages = JSON.stringify([
     {
       role: "assistant",
-      content: OPENING_MESSAGE,
+      content: AGENT_OPENING_MESSAGE,
       created_at: now,
     } satisfies ConversationMessage,
   ]);
@@ -559,7 +558,7 @@ export async function POST(request: NextRequest) {
       // Stream text word-by-word for a natural feel
       const words = assistantFinalContent.split(/(\s+)/);
       for (const word of words) {
-        if (word) {
+        if (word.trim()) {
           controller.enqueue(encoder.encode(sseChunk({ delta: word })));
         }
       }

@@ -226,10 +226,10 @@ export async function runClaudeAgentLoop(
       tools: anthropicTools,
     });
 
-    // Collect text from this response
+    // Collect text from this response (accumulate — responses may have multiple text blocks)
     for (const block of response.content) {
       if (block.type === "text") {
-        assistantText = block.text;
+        assistantText += block.text;
       }
     }
 
