@@ -240,6 +240,7 @@ async function handleChatPost(
       messages,
       systemPrompt,
       priorIntakeRequestId: conversation.intake_request_id ?? null,
+      db,
     });
   } catch {
     db.close();
@@ -309,7 +310,7 @@ function buildClaudeStreamingResponse(params: {
               ? params.userContentBlocks
               : undefined,
           tools: AGENT_TOOL_DEFINITIONS,
-          executeToolFn: async (name, args) => executeAgentTool(name, args),
+          executeToolFn: async (name, args) => executeAgentTool(name, args, db),
           maxToolRounds: MAX_TOOL_ROUNDS,
           callbacks: {
             onDelta(text) {
@@ -378,6 +379,7 @@ async function runOpenAIBatch(params: {
   messages: ConversationMessage[];
   systemPrompt: string;
   priorIntakeRequestId: string | null;
+  db: ReturnType<typeof openCliDb>;
 }): Promise<OAIBatchResult | Response> {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -444,7 +446,7 @@ async function runOpenAIBatch(params: {
 
         let toolResult: unknown;
         try {
-          toolResult = await executeAgentTool(toolName, toolArgs);
+          toolResult = await executeAgentTool(toolName, toolArgs, params.db);
         } catch {
           toolResult = { error: "tool execution failed" };
         }
