@@ -1,7 +1,7 @@
 # Sprint Persona-02: Affiliate Link & Commission Tools — Spec
 
 ## Objective
-Implement 5 affiliate tools giving affiliates visibility into their link/stats
+Implement 4 affiliate tools giving affiliates visibility into their link/stats
 and giving admins payout approval and commission void capabilities.
 
 ## Acceptance Criteria
@@ -43,7 +43,7 @@ src/evals/persona-affiliate.eval.ts
 
 ## Modified Files
 ```
-src/lib/agent/maestro-tools.ts   ← register 5 tools
+src/lib/agent/maestro-tools.ts   ← register 4 tools
 ```
 
 ## Non-Goals

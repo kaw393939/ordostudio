@@ -3,7 +3,7 @@
 **Sprint:** `sprint-maestro-02-admin-chat-ui`  
 **Date:** 2026-02-26  
 **Estimate:** 2–3 days  
-**Priority:** 🟡 P2  
+**Priority:** � P1 (ships together with Maestro-01)  
 **Depends on:** Maestro-01 (`/api/v1/agent/maestro` route must exist)  
 **Replaces:** `archive/sprint-maestro-02-admin-chat-ui/`
 
@@ -19,11 +19,29 @@ History is persisted in `localStorage` (no server-side storage yet — that's Ve
 
 ---
 
+## Role of This Sprint
+
+**M-02 is the validation gate for M-01's 10 tools.**
+
+M-01 and M-02 ship as a single delivery unit. The reason: you cannot tell whether an agent tool
+is actually usable until you have a real UI to converse through. Code-level tests prove tools
+execute correctly; the chat UI proves they work at human pace for the real user.
+
+**Validation rule:** If any of the 10 M-01 tools doesn't work naturally through this interface —
+awkward confirmations, confusing prompts, response output that's hard to read — fix the tool spec
+(and feed back to M-01) rather than papering over it with UI scaffolding. **Do not expand scope
+to M-01b until at least 8 of the 10 M-01 tools are comfortable through this UI.**
+
+History persistence (Vec-02) is deliberately deferred. If history turns out to be a real blocker
+for usage, that observation is the user research needed to un-defer Vec-02.
+
+---
+
 ## Key Design Decisions vs v1 Spec
 
 | Area | v1 | v2 |
 |------|----|----|
-| History storage | `localStorage` (same) | `localStorage` — Vec-02 will add DB persistence |
+| History storage | `localStorage` (same) | `localStorage` — DB persistence deferred (Vec-02 is parking-lot) |
 | Summary panel | Polls `/api/v1/admin/ops-summary` (same) | Added explicit component breakdown for the widget |
 | Capture values | Not specified | Action chips rendered from `capturedValues` (e.g., "View Intake →") |
 | UX framing | Generic | Explicitly "operator assistant", not "help desk" |

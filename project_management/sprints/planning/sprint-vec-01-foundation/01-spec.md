@@ -39,7 +39,7 @@
 | Migrations | 045 + 046 run cleanly on fresh DB |
 | Content indexed | `SELECT COUNT(*) FROM embeddings WHERE corpus = 'content'` > 0 after `npm run index-content` |
 | Semantic retrieval | Query "how much does it cost?" finds training.md pricing chunk (cosine distance < 0.5) |
-| RBAC | AFFILIATE query returns commission.md chunk; same query with userRole=null does not |
+| RBAC | AUTHENTICATED query returns commission.md chunk; same query with `userRole=null` (PUBLIC) does not |
 | Analytics | Every `content_search` call writes a row to `search_analytics` |
 | Eval gate | `npm run evals` → 17/17 PASS |
 | Unit tests | ≥ 1726 passing |

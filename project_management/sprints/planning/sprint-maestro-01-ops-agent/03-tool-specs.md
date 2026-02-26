@@ -1,14 +1,15 @@
 # Maestro-01: Ops Agent (v2) — Tool Specs
 
 **Sprint:** `sprint-maestro-01-ops-agent`
+**Tool count (this sprint):** 10
+**Deferred to M-01b:** 15 (bookings, workflow, expanded KPI, diagnostics)
 
 ---
 
-## Tool Registry Overview
+## Tool Registry Pattern
 
-All 25 tools live in `src/lib/api/maestro-tools.ts`.
+All 10 tools live in `src/lib/api/maestro-tools.ts`.
 
-Pattern:
 ```typescript
 export const MAESTRO_TOOLS: ToolDefinition[] = [ ... ];
 
@@ -31,7 +32,7 @@ Every tool:
 
 ---
 
-## Group A — Queue Management (5 tools)
+## Group A — Queue Management (3 tools)
 
 ### `get_intake_queue`
 
@@ -66,26 +67,6 @@ const UpdateIntakeStatusArgs = z.object({
   note: z.string().max(500).optional(),
 });
 // Writes: updates intake_requests.status; inserts intake_status_history row; writeFeedEvent('IntakeStatusChanged')
-```
-
-### `assign_intake`
-
-```typescript
-const AssignIntakeArgs = z.object({
-  intake_id: z.string().min(1),
-  user_id: z.string().min(1),
-});
-// Writes: sets intake_requests.assigned_to; writeFeedEvent('IntakeAssigned')
-```
-
-### `add_intake_note`
-
-```typescript
-const AddIntakeNoteArgs = z.object({
-  intake_id: z.string().min(1),
-  note: z.string().min(1).max(1000),
-});
-// Writes: inserts intake_status_history with current status + note; no status change
 ```
 
 ---
@@ -128,115 +109,7 @@ const RejectRoleRequestArgs = z.object({
 
 ---
 
-## Group C — Bookings & Availability (3 tools)
-
-### `list_bookings`
-
-```typescript
-const ListBookingsArgs = z.object({
-  status: z.enum(['OPEN','BOOKED','CANCELLED']).optional(),
-  limit: z.number().int().default(20),
-});
-// Returns: [{ slot_id, start_at, end_at, status, booked_by_email, booking_id }]
-```
-
-### `add_availability_slot`
-
-```typescript
-const AddAvailabilitySlotArgs = z.object({
-  start_at: z.string().datetime(),
-  end_at: z.string().datetime(),
-});
-// Writes: INSERT INTO maestro_availability; writeFeedEvent('SlotAdded')
-// Validates: end_at > start_at; duration 15min–4h
-```
-
-### `cancel_availability_slot`
-
-```typescript
-const CancelSlotArgs = z.object({
-  slot_id: z.string().min(1),
-});
-// Writes: UPDATE maestro_availability SET status='CANCELLED' WHERE id=? AND status='OPEN'
-// Error if status = 'BOOKED': "Cannot cancel a booked slot — cancel the booking first"
-```
-
----
-
-## Group D — Workflow (4 tools)
-
-### `list_workflow_executions`
-
-```typescript
-const ListWorkflowExecutionsArgs = z.object({
-  status: z.enum(['PENDING','RUNNING','SUCCESS','FAILED']).optional(),
-  rule_id: z.string().optional(),
-  limit: z.number().int().default(20),
-});
-```
-
-### `get_workflow_execution_detail`
-
-```typescript
-const GetWorkflowExecutionDetailArgs = z.object({
-  execution_id: z.string().min(1),
-});
-// Returns: full execution row + associated rule name + trigger event
-```
-
-### `list_workflow_rules`
-
-```typescript
-const ListWorkflowRulesArgs = z.object({
-  enabled_only: z.boolean().default(false),
-});
-// Returns: [{ id, name, event_type, action_type, enabled, last_execution_at, execution_count }]
-```
-
-### `toggle_workflow_rule`
-
-```typescript
-const ToggleWorkflowRuleArgs = z.object({
-  rule_id: z.string().min(1),
-  enabled: z.boolean(),
-});
-// Writes: UPDATE workflow_rules SET enabled=? WHERE id=?
-// Returns: { rule_id, enabled, name }
-```
-
----
-
-## Group E — KPI & Analytics (6 tools)
-
-### `get_funnel_stats`
-
-```typescript
-const GetFunnelStatsArgs = z.object({
-  days: z.number().int().min(1).max(365).default(30),
-});
-// Returns:
-// { period_days: 30, intakes: { new: 5, triaged: 3, qualified: 2, booked: 1, closed: 1, rejected: 0 } }
-// SQL: GROUP BY status WHERE created_at >= date('now', '-? days')
-```
-
-### `get_recent_activity`
-
-```typescript
-const GetRecentActivityArgs = z.object({
-  days: z.number().int().min(1).max(90).default(7),
-});
-// Returns: [{ type, count, last_at }] from feed_events
-// SQL: SELECT type, COUNT(*) as count, MAX(created_at) as last_at FROM feed_events
-//      WHERE created_at >= date('now', '-? days') GROUP BY type ORDER BY count DESC
-```
-
-### `get_contact_summary`
-
-```typescript
-// No args
-// Returns: { total: 45, by_status: [{ status: 'new', count: 12 }, ...] }
-// SQL: SELECT status, COUNT(*) FROM contacts GROUP BY status
-```
+## Group C — KPI (2 tools)
 
 ### `get_revenue_summary`
 
@@ -258,47 +131,28 @@ const GetRevenueSummaryArgs = z.object({
 //      WHERE created_at >= date('now', '-? days') GROUP BY entry_type, status
 ```
 
-### `get_newsletter_stats`
+### `get_recent_activity`
 
 ```typescript
-// No args — current snapshot stats
-// Returns:
-// {
-//   subscribers: { total: 318, active: 280, unsubscribed: 38 },
-//   last_send_run: { run_id, sent_at, sent_count, delivered, bounced },
-//   issues: { total: 12, scheduled: 1, published: 11 }
-// }
-// SQL: JOIN newsletter_subscribers + newsletter_send_runs + newsletter_issues
-```
-
-### `get_event_utilization`
-
-```typescript
-const GetEventUtilizationArgs = z.object({
-  days: z.number().int().min(1).max(180).default(60),
+const GetRecentActivityArgs = z.object({
+  days: z.number().int().min(1).max(90).default(7),
 });
-// Returns:
-// { period_days: 60, events: [{ id, title, capacity, registered, fill_pct, date }] }
-// SQL: SELECT e.*, COUNT(er.id) as registered FROM events e
-//      LEFT JOIN event_registrations er ON er.event_id = e.id
-//      WHERE e.start_at >= date('now', '-? days') GROUP BY e.id
+// Returns: [{ type, count, last_at }] from feed_events
+// SQL: SELECT type, COUNT(*) as count, MAX(created_at) as last_at FROM feed_events
+//      WHERE created_at >= date('now', '-? days') GROUP BY type ORDER BY count DESC
 ```
 
 ---
 
-## Group F — Diagnostics (4 tools)
+## Group D — Operations (2 tools)
 
-### `run_health_check`
+### `get_ops_summary`
 
 ```typescript
 // No args
-// Returns: {
-//   db_migration_version: '043',
-//   table_counts: { users: 42, intake_requests: 15, deals: 8, ... },
-//   email_configured: true,
-//   openai_configured: true,
-//   sqlite_vec_loaded: true
-// }
+// Internal: calls get_revenue_summary(7d) + get_recent_activity(7d)
+// Returns combined object — used by Maestro-02 polling endpoint /api/v1/admin/ops-summary
+// Pure read; no feed event written
 ```
 
 ### `get_audit_log`
@@ -312,31 +166,37 @@ const GetAuditLogArgs = z.object({
 // Returns: [{ id, action, actor_type, actor_id, target_id, created_at, metadata }]
 ```
 
-### `trigger_test_workflow`
+---
 
-```typescript
-const TriggerTestWorkflowArgs = z.object({
-  event_type: z.string().min(1),
-  payload: z.record(z.unknown()),
-});
-// Writes: INSERT INTO feed_events with metadata.source = 'EVAL' (or 'TEST')
-// Returns: { feed_event_id, matched_rules: [{ rule_id, name, triggered: true/false }] }
-```
+## Deferred Tools (M-01b)
 
-### `get_ops_summary`
+The following 15 tools are fully specified in `sprint-maestro-01b-extended/03-tool-specs.md`.
+Do NOT implement them in this sprint. Add them only after observing which gaps
+appear in real usage after M-01/02 ships.
 
-```typescript
-// No args
-// Internal: calls get_funnel_stats(7d) + get_recent_activity(7d) + get_newsletter_stats() + get_revenue_summary(7d)
-// Returns combined object — used by Maestro-02 polling endpoint /api/v1/admin/ops-summary
-// This is a pure read that aggregates; no feed event written
-```
+| Group | Tool |
+|-------|------|
+| Queue | `assign_intake` |
+| Queue | `add_intake_note` |
+| Bookings | `list_bookings` |
+| Bookings | `add_availability_slot` |
+| Bookings | `cancel_availability_slot` |
+| Workflow | `list_workflow_executions` |
+| Workflow | `get_workflow_execution_detail` |
+| Workflow | `list_workflow_rules` |
+| Workflow | `toggle_workflow_rule` |
+| KPI | `get_funnel_stats` |
+| KPI | `get_contact_summary` |
+| KPI | `get_newsletter_stats` |
+| KPI | `get_event_utilization` |
+| Diagnostics | `run_health_check` |
+| Diagnostics | `trigger_test_workflow` |
 
 ---
 
 ## `feed_events` Writer Expansion
 
-These existing functions must be updated to call `writeFeedEvent()` inside their DB transaction:
+These existing functions must be updated to call `writeFeedEvent()`:
 
 | Function | New event type | When |
 |----------|---------------|------|

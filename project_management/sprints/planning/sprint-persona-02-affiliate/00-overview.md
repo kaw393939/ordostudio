@@ -18,9 +18,9 @@ The reconciliation report flagged three affiliate gaps:
 ## Scope Boundaries
 | In scope | Out of scope |
 |---|---|
-| 5 affiliate tools | Stripe payout scheduling |
-| 3 evals (P2-01 through P2-03) | New DB migrations |
-| Commission void exposed to agent | Affiliate signup flow |
+| 4 affiliate tools | Stripe payout scheduling |
+| 2 evals (P2-01, P2-02) | New DB migrations |
+| `void_commission` exposed to agent | Affiliate signup flow |
 | `commission_rate` bug fix carry (0.25→0.04) | Email commission statements |
 
 ## Inputs Required
@@ -30,7 +30,7 @@ The reconciliation report flagged three affiliate gaps:
 
 ## Outputs Produced
 - 5 tools in `src/lib/agent/tools/maestro-persona-affiliate.ts`
-- 3 evals: P2-01, P2-02, P2-03
+- 2 evals: P2-01, P2-02
 - Total tools: 37 → 42
 
 ## Estimated Effort
@@ -41,5 +41,20 @@ The reconciliation report flagged three affiliate gaps:
 | Total | 4.5 h |
 
 ## Risk
-**Low-Medium.** `approve_payout` makes a DB state change; requires ADMIN auth guard
+**Low.** All tools are read-only except `void_commission` (reversible). `approve_payout` removed — financial state change via chat is a risk pattern
 and idempotency (cannot approve already-approved payout).
+
+## What Was Removed vs Original Spec
+
+**`approve_payout` (Tool 4):** Removed from agent. Approving financial payouts via a
+conversational interface risks LLM misread (wrong commission ID, ambiguous confirmation text)
+and socially-engineered approvals ("approve the $3,000 commission"). This belongs in a
+dedicated payout management UI with the commission details and an explicit confirm button.
+
+Note: `void_commission` is kept because voiding is reversible (the commission can be un-voided
+if it was an error), and the risk surface is smaller (no money moves — the payment just doesn't
+happen). `approve_payout` is not reversible once actioned in Stripe.
+
+**Eval P2-03 (`payout-approve`):** Removed with `approve_payout`.
+
+**Tool count:** 5 → 4. **Eval count:** 3 → 2.

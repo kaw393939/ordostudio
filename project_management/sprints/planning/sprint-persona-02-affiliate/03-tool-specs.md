@@ -71,26 +71,12 @@ LIMIT :limit;
 
 ---
 
-## Tool 4: `approve_payout`
-
-```typescript
-const ApprovePayoutInput = z.object({
-  commissionId: z.string().describe("ID of the commission to approve"),
-});
-```
-
-**ADMIN/STAFF only.** Transaction required. See idempotency pattern in
-[02-architecture.md](02-architecture.md).
-
-**Returns:**
-```typescript
-{ commissionId: string; status: 'approved'; approvedAt: string }
-| { alreadyApproved: true }
-```
 
 ---
 
-## Tool 5: `void_commission`
+## Tool 4: `void_commission`
+
+(was Tool 5 in original spec — `approve_payout` removed) `void_commission`
 
 ```typescript
 const VoidCommissionInput = z.object({
@@ -110,4 +96,6 @@ const VoidCommissionInput = z.object({
 ---
 
 ## Registration in `maestro-tools.ts`
-Append 5 entries. Total tools after: **42**.
+Append 4 entries.
+
+**Deferred:** `approve_payout` — see 00-overview.md for rationale.

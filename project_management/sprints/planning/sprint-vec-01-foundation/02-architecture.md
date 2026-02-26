@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS embeddings (
   source_id    TEXT NOT NULL, -- file path OR row id depending on corpus
   chunk_index  INTEGER NOT NULL DEFAULT 0,
   chunk_text   TEXT NOT NULL,
-  visibility   TEXT NOT NULL DEFAULT 'PUBLIC', -- PUBLIC|AUTHENTICATED|AFFILIATE|APPRENTICE|ADMIN
+  visibility   TEXT NOT NULL DEFAULT 'PUBLIC', -- PUBLIC|AUTHENTICATED|ADMIN
   user_id      TEXT,          -- NULL for content corpus; userId for 'chat' corpus
   embedding    BLOB NOT NULL, -- float32 array, 1536 dims for text-embedding-3-small
   metadata_json TEXT,         -- arbitrary extra: { title, section, word_count }
@@ -94,18 +94,18 @@ CREATE INDEX IF NOT EXISTS idx_search_analytics_created ON search_analytics(crea
 
 ## RBAC Visibility Model
 
-Visibility levels form a hierarchy. A user with role `APPRENTICE` can see up to `APPRENTICE` visibility:
+Visibility levels form a 3-tier hierarchy. AUTHENTICATED users can see all non-admin content:
 
 ```
-PUBLIC < AUTHENTICATED < AFFILIATE < APPRENTICE < ADMIN
+PUBLIC < AUTHENTICATED < ADMIN
 ```
 
 ```typescript
 // src/lib/vector/visibility.ts
-export type Visibility = 'PUBLIC' | 'AUTHENTICATED' | 'AFFILIATE' | 'APPRENTICE' | 'ADMIN';
+export type Visibility = 'PUBLIC' | 'AUTHENTICATED' | 'ADMIN';
 
 const LEVEL: Record<Visibility, number> = {
-  PUBLIC: 0, AUTHENTICATED: 1, AFFILIATE: 2, APPRENTICE: 3, ADMIN: 4,
+  PUBLIC: 0, AUTHENTICATED: 1, ADMIN: 2,
 };
 
 export function isVisibleTo(contentVisibility: Visibility, userRole: string | null): boolean {
@@ -137,8 +137,8 @@ Required files to update:
 - `content/site/guild.md` → `PUBLIC`
 - `content/site/faq.md` → `PUBLIC`
 - `content/site/about.md` → `PUBLIC`
-- `content/policies/commission.md` → `AFFILIATE`
-- `content/policies/onboarding.md` → `APPRENTICE`
+- `content/policies/commission.md` → `AUTHENTICATED`
+- `content/policies/onboarding.md` → `AUTHENTICATED`
 
 ---
 

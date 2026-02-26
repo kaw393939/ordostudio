@@ -20,9 +20,9 @@ This sprint closes those gaps and gives the membership persona complete coverage
 ## Scope Boundaries
 | In scope | Out of scope |
 |---|---|
-| 8 membership/apprentice tools | UI pages for rank progression |
-| 5 evals (P1-01 through P1-05) | Payment gating for membership tiers |
-| Role promotion via agent | Email notifications on role change |
+| 6 membership/apprentice tools | UI pages for rank progression |
+| 4 evals (P1-01 through P1-04) | Payment gating for membership tiers |
+| Role promotion deferred to UI | Email notifications on role change |
 | ASSOCIATE/CERTIFIED gate checks | Stripe integration changes |
 
 ## Inputs Required
@@ -32,7 +32,7 @@ This sprint closes those gaps and gives the membership persona complete coverage
 
 ## Outputs Produced
 - 8 new tools in `src/lib/agent/tools/maestro-persona-membership.ts`
-- 5 evals: P1-01 through P1-05
+- 4 evals: P1-01 through P1-04
 - Total tool count: 29 → 37
 
 ## Estimated Effort
@@ -44,4 +44,20 @@ This sprint closes those gaps and gives the membership persona complete coverage
 
 ## Risk
 **Medium.** Role promotion modifies user records — must verify only ADMIN/STAFF
-callers can invoke `promote_user_role`. Test with unauthorized caller eval.
+callers cannot invoke admin-only tools. ADMIN auth enforced at route level.
+
+## What Was Removed vs Original Spec
+
+**`promote_user_role` (Tool 6):** Removed from agent. An LLM confirming role promotion
+via a text response is a dangerous pattern — the LLM could misread intent and promote the
+wrong user, or an admin could be socially engineered. This belongs in a dedicated
+confirmation UI with an explicit button press, not a conversational agent. Add to a
+future `sprint-admin-role-ui` sprint.
+
+**`review_gate_submission` (Tool 7):** Removed from agent. Gate submission review is an
+admin workflow that requires context-rich UI (attachments, notes, history). A conversational
+interface is the wrong medium for a formal review decision.
+
+**Eval P1-04 (`promote-user-role`):** Removed with `promote_user_role`.
+
+**Tool count:** 8 → 6. **Eval count:** 5 → 4.

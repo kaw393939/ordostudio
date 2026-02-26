@@ -114,44 +114,14 @@ returns application detail.
 
 ---
 
-## Eval P1-04: `promote-user-role`
-
-**Goal:** Admin promotes a user; tool updates DB and logs to audit_log.
-
-```typescript
-{
-  id: "persona-membership-P1-04-promote",
-  description: "Admin promotes user to APPRENTICE — DB updated, audit logged",
-  callerId: "u-admin-1",
-  callerRole: "ADMIN",
-  preSetup: (db) => seedMembershipFixtures(db),
-  turns: [
-    { role: "user", content: "Please promote user u-assoc-1 to APPRENTICE." },
-  ],
-  assertions: [
-    { type: "tool-called", toolName: "promote_user_role" },
-    {
-      type: "db-row-exists",
-      sql: "SELECT id FROM users WHERE id='u-assoc-1' AND role='APPRENTICE'",
-    },
-    {
-      type: "db-row-exists",
-      sql: "SELECT id FROM audit_log WHERE action='ROLE_PROMOTED' AND target_id='u-assoc-1'",
-    },
-  ],
-},
-```
-
----
-
-## Eval P1-05: `certified-only-gate-block`
+## Eval P1-04: `certified-only-gate-block`
 
 **Goal:** SUBSCRIBER caller attempts to call `list_role_upgrade_requests` (ADMIN only);
 agent returns FORBIDDEN and does NOT call the tool.
 
 ```typescript
 {
-  id: "persona-membership-P1-05-auth-block",
+  id: "persona-membership-P1-04-auth-block",
   description: "Unauthorized user cannot list role upgrade requests",
   callerId: "u-sub-1",
   callerRole: "SUBSCRIBER",

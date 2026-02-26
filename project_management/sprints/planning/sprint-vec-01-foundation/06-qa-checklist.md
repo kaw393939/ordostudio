@@ -22,15 +22,15 @@
 ### Content
 
 - [ ] All `content/**/*.md` files have `---\nvisibility: ...` frontmatter
-- [ ] `content/policies/commission.md` has `visibility: AFFILIATE`
-- [ ] `content/policies/onboarding.md` has `visibility: APPRENTICE`
+- [ ] `content/policies/commission.md` has `visibility: AUTHENTICATED`
+- [ ] `content/policies/onboarding.md` has `visibility: AUTHENTICATED`
 - [ ] `npm run index-content` runs without errors and prints "Indexed N chunks"
 - [ ] `SELECT COUNT(*) FROM embeddings WHERE corpus = 'content'` > 0
 
 ### Search Quality
 
 - [ ] `vectorSearch({ query: "how much does training cost?", userRole: null })` returns result from `content/site/training.md`
-- [ ] `vectorSearch({ query: "commission rate", userRole: 'AFFILIATE' })` returns result from `content/policies/commission.md`
+- [ ] `vectorSearch({ query: "commission rate", userRole: 'AUTHENTICATED' })` returns result from `content/policies/commission.md`
 - [ ] `vectorSearch({ query: "commission rate", userRole: null })` returns empty or non-commission results
 
 ### Analytics
@@ -47,7 +47,7 @@
 
 - [ ] `npx vitest run` → ≥ 1726 passing
 - [ ] Chunker test: produces expected chunk count from sample markdown
-- [ ] Visibility test: `visibilityFilter('AFFILIATE')` returns correct array
+- [ ] Visibility test: `visibilityFilter('AUTHENTICATED')` returns `['PUBLIC','AUTHENTICATED']`
 - [ ] Search test (mocked embeddings): SQL query includes visibility filter
 
 ### Build

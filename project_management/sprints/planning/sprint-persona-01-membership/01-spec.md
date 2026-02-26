@@ -1,7 +1,7 @@
 # Sprint Persona-01: Membership & Apprenticeship Tools — Spec
 
 ## Objective
-Implement 8 tools covering the full apprenticeship lifecycle: user-facing
+Implement 6 tools covering the full apprenticeship lifecycle: user-facing
 (apply, view requirements, track progress) and operator-facing (review, promote,
 manage gate submissions).
 

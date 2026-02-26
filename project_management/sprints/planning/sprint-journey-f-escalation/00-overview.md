@@ -1,7 +1,7 @@
 # Sprint Journey-F: Urgent Escalation & Callback Tools — Overview
 
 ## Status
-**NOT STARTED** | Depends on: Maestro-01 complete
+**NOT STARTED** | Priority: 🟠 P1 | Depends on: Maestro-01 + Maestro-02 complete (ships immediately after)
 
 ## One-Liner
 Close the Journey F gap identified in the reconciliation report: high-intent leads
@@ -37,7 +37,7 @@ path:
 - 3 new tools in `src/lib/agent/tools/maestro-journey-f.ts`
 - `UrgentIntakeFlagged` feed event type
 - 3 evals: JF-01, JF-02, JF-03
-- Total tools: 43 → 46
+- Total tools in ops agent: 10 → 13
 
 ## Estimated Effort
 | Role | Hours |

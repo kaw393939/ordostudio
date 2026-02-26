@@ -1,49 +1,50 @@
-# Sprint Vec-02: User Memory & Chat History Search — Overview
+# Sprint Vec-02: User Memory & Chat History Search — DEFERRED
 
 ## Status
-**NOT STARTED** | Depends on: Vec-01 complete (embeddings table, search infrastructure)
+**DEFERRED — PARKING LOT** | No schedule | Do not start without user research
 
-## One-Liner
-Attach user identity to chat conversations and build a `search_chat_history` tool
-that lets users semantically search their own past chat sessions — with strict
-cross-user isolation.
+---
 
-## Why This Sprint Exists
-After Vec-01, the `embeddings` table exists and has RBAC visibility. But:
-1. `intake_conversations` rows have no `user_id` — sessions are anonymous
-2. The agent cannot recall past conversations for context
-3. There is no way for a user to find a previous answer they received
+## Why This Sprint Is Deferred
 
-This sprint wires user identity into the conversation pipeline and adds semantic
-recall as a first-class tool.
+Three signals must exist before building this sprint:
 
-## Scope Boundaries
-| In scope | Out of scope |
-|---|---|
-| Migration 047: `ALTER TABLE intake_conversations ADD COLUMN user_id` | Full conversation summarisation |
-| Conversation indexer (embed after each turn) | Real-time suggestion / autocomplete |
-| `search_chat_history` tool | Cross-user search or admin history browsing |
-| 3 evals (V2-01 through V2-03) | Multi-device sync |
+1. **User feedback** — Users explicitly ask "can you remember what we talked about?"
+   or report that they couldn't find a previous answer. This has not happened yet.
 
-## Inputs Required
-- Vec-01 complete: `embeddings` table, `EmbeddingClient`, `VectorSearch` module
+2. **Volume threshold** — The `intake_conversations` table should have > 500
+   sessions before semantic search over chat history provides meaningful recall.
+   Today it has far fewer.
 
-## Outputs Produced
-- Migration `047_intake_conversations_user_id`
-- `src/lib/vector/conversation-indexer.ts`
-- `search_chat_history` tool
-- 3 evals: V2-01, V2-02, V2-03
-- Total tools: 42 → 43
+3. **Performance budget** — Every chat turn currently makes zero OpenAI API calls
+   for non-RAG messages. Vec-02 would add an embedding call (text-embedding-3-small)
+   on every single turn to index the conversation. At $0.02/million tokens, the
+   cost per unit is negligible, but the latency is not: ~80ms per turn added.
+   That 80ms is noticeable in a conversational interface.
 
-## Estimated Effort
-| Role | Hours |
-|---|---|
-| DB + embeddings | 2 h |
-| Tool + indexer | 2 h |
-| Evals | 1.5 h |
-| Total | 5.5 h |
+---
 
-## Risk
-**Medium.** Embedding is async; the conversation turn must complete before the
-indexer runs (fire-and-forget in a `setImmediate` or `queueMicrotask` is fine).
-Must not block the SSE stream response.
+## Original Scope (preserved as reference)
+
+If undeferred, this sprint builds:
+
+- Migration 047: `ALTER TABLE intake_conversations ADD COLUMN user_id TEXT`
+- Conversation indexer: after each agent turn, embed the exchange and INSERT into
+  `embeddings` with `corpus = 'chat'`, `user_id = callerId`
+- `search_chat_history` tool: semantic search over caller's own past conversations
+- Cross-user isolation: every query WHERE `user_id = callerId` — no admin override
+
+Full spec files (`01-spec.md`, `02-architecture.md`, `03-tool-spec.md`,
+`04-eval-specs.md`, `05-sprint.md`) are preserved and current. This overview
+is the only file with the deferred status.
+
+---
+
+## Prerequisites to Revisit
+
+- User research showing ≥ 3 users independently request conversation recall
+- OR intake conversation volume > 500 sessions
+- OR latency budget review shows 80ms/turn acceptable in production
+
+When any condition is met, update this file and move Vec-02 into the active
+execution sequence after Vec-01.

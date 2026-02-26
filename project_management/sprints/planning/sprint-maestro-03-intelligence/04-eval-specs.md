@@ -3,6 +3,9 @@
 Eval file: `src/evals/maestro-intel.eval.ts`
 Seed helper: `src/evals/fixtures/intel-seeds.ts`
 
+**Evals in this sprint: 3 (F1, F3, F4)**
+**Deferred: F2** (`maestro-intel-F2-funnel-velocity` — with `get_funnel_velocity`)
+
 ---
 
 ## Seed Helper: `intel-seeds.ts`
@@ -21,7 +24,7 @@ export function seedIntelFixtures(db: Database) {
     { query: "unknown-xyz-abc",  results_n: 0, days_ago: 2 },  // zero hit
     { query: "workshop",         results_n: 6, days_ago: 15 },
     { query: "refund policy",    results_n: 2, days_ago: 20 },
-    { query: "cancel",           results_n: 0, days_ago: 25 }, // zero hit — outside F4 window
+    { query: "cancel",           results_n: 0, days_ago: 25 },
     { query: "events",           results_n: 4, days_ago: 6 },
     { query: "events",           results_n: 3, days_ago: 12 },
     { query: "events",           results_n: 2, days_ago: 18 },
@@ -66,55 +69,8 @@ and count of zero-result searches.
     },
     {
       type: "content-contains",
-      // agent should mention at least one zero-result query
       substring: "no results",
       alternates: ["zero results", "returning no", "unknown-xyz"],
-    },
-  ],
-},
-```
-
----
-
-## Eval F2: `funnel-velocity-query`
-
-**Goal**: Agent uses `get_funnel_velocity` and gives a numeric answer about
-where leads are slowest.
-
-```typescript
-{
-  id: "maestro-intel-F2-funnel-velocity",
-  description: "Agent reports funnel velocity in hours",
-  preSetup: (db) => {
-    seedIntelFixtures(db);
-    // Seed intake_status_history if table exists
-    try {
-      db.prepare(`
-        INSERT OR IGNORE INTO intake_status_history
-          (id, intake_id, old_status, new_status, changed_at)
-        VALUES
-          ('ish-1', 'int-seed-1', 'new', 'contacted', datetime('now', '-5 days')),
-          ('ish-2', 'int-seed-1', 'contacted', 'qualified', datetime('now', '-3 days')),
-          ('ish-3', 'int-seed-2', 'new', 'contacted', datetime('now', '-8 days')),
-          ('ish-4', 'int-seed-2', 'contacted', 'qualified', datetime('now', '-4 days'))
-      `).run();
-    } catch { /* table may not exist — tool handles gracefully */ }
-  },
-  turns: [
-    {
-      role: "user",
-      content: "How quickly are leads moving through the intake funnel?",
-    },
-  ],
-  assertions: [
-    {
-      type: "tool-called",
-      toolName: "get_funnel_velocity",
-    },
-    {
-      type: "content-matches-regex",
-      // should mention hours or a note about data not available
-      pattern: /hours|not available|no data/i,
     },
   ],
 },
@@ -125,7 +81,7 @@ where leads are slowest.
 ## Eval F3: `ops-brief-single-call`
 
 **Goal**: When asked a broad status question, agent calls `get_ops_brief` and
-includes at least three of the five KPI categories in its reply.
+includes at least revenue and search sections in its reply.
 
 ```typescript
 {
@@ -144,9 +100,8 @@ includes at least three of the five KPI categories in its reply.
       toolName: "get_ops_brief",
     },
     {
-      // Should include revenue, funnel/leads, and search sections
       type: "content-matches-regex",
-      pattern: /revenue|funnel|leads|search/i,
+      pattern: /revenue|leads|search/i,
     },
     {
       type: "content-contains",
@@ -161,8 +116,8 @@ includes at least three of the five KPI categories in its reply.
 
 ## Eval F4: `empty-search-log-graceful`
 
-**Goal**: When `search_analytics` is empty (new install), agent does not crash
-or hallucinate numbers; it reports zero searches gracefully.
+**Goal**: When `search_analytics` is empty, agent does not crash or hallucinate
+numbers; it reports zero searches gracefully.
 
 ```typescript
 {
@@ -187,7 +142,6 @@ or hallucinate numbers; it reports zero searches gracefully.
       pattern: /no searches|0 searches|zero|none|no data|no records/i,
     },
     {
-      // Must NOT invent query names
       type: "content-not-contains",
       substring: "pricing",
     },
@@ -198,3 +152,10 @@ or hallucinate numbers; it reports zero searches gracefully.
   ],
 },
 ```
+
+---
+
+## Deferred: F2 `funnel-velocity-query`
+
+This eval tests `get_funnel_velocity` which is deferred to M-03b. The scenario
+spec is preserved in `sprint-maestro-01b-extended/04-eval-specs.md`.

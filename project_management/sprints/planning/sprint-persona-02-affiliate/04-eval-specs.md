@@ -86,34 +86,3 @@ export function seedAffiliateFixtures(db: Database) {
   ],
 },
 ```
-
----
-
-## Eval P2-03: `payout-approve`
-
-**Goal:** Admin approves a pending commission; DB row updated and audit logged.
-
-```typescript
-{
-  id: "persona-affiliate-P2-03-approve-payout",
-  description: "Admin approves commission — DB updated, audit logged",
-  callerId: "u-admin-2",
-  callerRole: "ADMIN",
-  preSetup: (db) => seedAffiliateFixtures(db),
-  turns: [
-    { role: "user", content: "Approve the commission com-1." },
-  ],
-  assertions: [
-    { type: "tool-called", toolName: "approve_payout" },
-    {
-      type: "db-row-exists",
-      sql: "SELECT id FROM commissions WHERE id='com-1' AND status='approved'",
-    },
-    {
-      type: "db-row-exists",
-      sql: "SELECT id FROM audit_log WHERE action='COMMISSION_APPROVED' AND target_id='com-1'",
-    },
-    { type: "content-matches-regex", pattern: /approved/i },
-  ],
-},
-```

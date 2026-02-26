@@ -121,64 +121,7 @@ WHERE rr.id = :requestId;
 
 ---
 
-## Tool 6: `promote_user_role`
-
-```typescript
-const PromoteUserRoleInput = z.object({
-  userId:  z.string(),
-  newRole: z.enum(['SUBSCRIBER','ASSOCIATE','APPRENTICE','CERTIFIED_CONSULTANT','STAFF'])
-            .describe("Cannot promote to ADMIN via this tool"),
-  reason:  z.string().max(500).optional(),
-});
-```
-
-**ADMIN/STAFF only. Transaction required.** See [02-architecture.md](02-architecture.md).
-Logs to `audit_log`. Returns `{ userId, oldRole, newRole, promotedAt }`.
-
----
-
-## Tool 7: `review_gate_submission`
-
-```typescript
-const ReviewGateSubmissionInput = z.object({
-  submissionId: z.string(),
-});
-```
-
-**ADMIN/STAFF only.**
-
-```sql
-SELECT gs.*, u.email, u.role
-FROM gate_submissions gs
-JOIN users u ON u.id = gs.user_id
-WHERE gs.id = :submissionId;
-```
-
-Graceful if table absent: `{ error: 'GATE_SUBMISSIONS_NOT_ACTIVE' }`
-
----
-
-## Tool 8: `list_role_upgrade_requests`
-
-```typescript
-const ListRoleUpgradeRequestsInput = z.object({
-  status: z.enum(['pending','approved','rejected','all']).default('pending'),
-  limit:  z.number().int().min(1).max(100).default(25),
-});
-```
-
-**ADMIN/STAFF only.**
-
-```sql
-SELECT rr.*, u.email, u.role AS current_role
-FROM role_requests rr
-JOIN users u ON u.id = rr.user_id
-WHERE (:status = 'all' OR rr.status = :status)
-ORDER BY rr.created_at DESC
-LIMIT :limit;
-```
-
----
-
 ## Registration in `maestro-tools.ts`
-Append 8 entries to toolRegistry. Total tools after: **37**.
+Append 6 entries to toolRegistry.
+
+**Deferred:** `promote_user_role` and `review_gate_submission` — see 00-overview.md for rationale.

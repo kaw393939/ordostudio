@@ -3,7 +3,7 @@
 **Sprint:** `sprint-vec-01-foundation`  
 **Date:** 2026-02-26  
 **Estimate:** 3–4 days  
-**Priority:** 🟠 P1 — unblocks RBAC-aware search, user memory (Vec-02), and Maestro-03 analytics  
+**Priority:** 🟠 P1 — unblocks role-aware search and Maestro-03 analytics  
 **Depends on:** Phase 0 (eval gate must be green before adding content evals)  
 **Migration numbers:** 045 (`embeddings` table), 046 (`search_analytics` table)
 
@@ -30,7 +30,7 @@ This sprint installs `sqlite-vec`, creates the unified `embeddings` table, build
 | Chunk size | ~400 tokens (~300 words) | Tested against content files; good recall/precision balance |
 | Chunk overlap | 50 tokens | Prevents boundary effects where a concept spans chunks |
 | Similarity metric | Cosine similarity | Standard for text embeddings; sqlite-vec supports it natively |
-| RBAC | frontmatter `visibility` field | Content authors set visibility in the .md file header; no separate config file |
+| RBAC | frontmatter `visibility` field; 3 tiers only | `PUBLIC / AUTHENTICATED / ADMIN` — covers all real content cases |
 | Default visibility | `PUBLIC` | Safe default; nothing is accidentally hidden |
 | `embeddings` table scope | Content corpus only (Vec-01); user chat history (Vec-02) | Phases; don't over-build Vec-01 |
 | Search analytics | Log to `search_analytics` table, not `content_search_log` | Supersedes the Maestro-03-v1 `content_search_log` design; unified, richer |
@@ -40,6 +40,6 @@ This sprint installs `sqlite-vec`, creates the unified `embeddings` table, build
 ## What This Unlocks
 
 - **Better answers** — semantic retrieval beats keyword matching for natural language questions
-- **Persona-aware search** — AFFILIATE can see commission content; APPRENTICE can see guild rank gates; PUBLIC cannot
+- **Role-aware search** — AUTHENTICATED users see all site content including commission and onboarding docs; PUBLIC users see only public content; ADMIN sees everything. AFFILIATE and APPRENTICE as separate visibility tiers are deferred (3 tiers cover all real cases today).
 - **Maestro-03** — `search_analytics` table provides the data for top-query reporting and funnel correlation
 - **Vec-02** — the same `embeddings` table will store conversation history with `corpus = 'chat'`
