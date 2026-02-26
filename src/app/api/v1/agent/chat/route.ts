@@ -6,14 +6,15 @@
  *
  * DB lifecycle:
  *  - All non-streaming paths close `db` before returning their Response.
- *  - The Claude streaming path transfers db ownership to the ReadableStream;
- *    db.close() happens inside the stream's start() finally block.
+ *  - Both the Claude and OpenAI streaming paths transfer db ownership to the
+ *    ReadableStream; db.close() happens inside the stream's start() finally block.
  *  - The outer POST handler only closes db on unexpected throws.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest } from "next/server";
-import OpenAI from "openai";
+import type OpenAI from "openai";
+import { runOpenAIAgentLoopStream } from "@/lib/llm-openai";
 import { openCliDb } from "@/platform/runtime";
 import { resolveConfig } from "@/platform/config";
 import { AGENT_TOOL_DEFINITIONS, executeAgentTool } from "@/lib/api/agent-tools";
@@ -137,23 +138,6 @@ function sseChunk(data: Record<string, unknown>): string {
 }
 
 // ---------------------------------------------------------------------------
-// LLM dispatch types (OpenAI batch path only — Claude uses streaming)
-// ---------------------------------------------------------------------------
-
-interface ToolEvent {
-  type: "tool_call" | "tool_result";
-  name: string;
-  args?: Record<string, unknown>;
-  result?: unknown;
-}
-
-interface OAIBatchResult {
-  assistantFinalContent: string;
-  toolEvents: ToolEvent[];
-  intakeRequestId: string | null;
-}
-
-// ---------------------------------------------------------------------------
 // Route handler
 // ---------------------------------------------------------------------------
 
@@ -233,45 +217,8 @@ async function handleChatPost(
     });
   }
 
-  // -- OpenAI fallback (batch) — TODO(R-10): upgrade to true streaming --
-  let oaiResult: OAIBatchResult | Response;
-  try {
-    oaiResult = await runOpenAIBatch({
-      messages,
-      systemPrompt,
-      priorIntakeRequestId: conversation.intake_request_id ?? null,
-      db,
-    });
-  } catch {
-    db.close();
-    return new Response(JSON.stringify({ error: "AI service unavailable" }), {
-      status: 502,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-
-  if (oaiResult instanceof Response) {
-    db.close();
-    return oaiResult;
-  }
-
-  try {
-    persistAssistantMessage(
-      db,
-      conversation,
-      messages,
-      oaiResult.assistantFinalContent,
-      oaiResult.intakeRequestId,
-    );
-    return buildBatchSSEResponse(
-      oaiResult.toolEvents,
-      oaiResult.assistantFinalContent,
-      conversation.id,
-      oaiResult.intakeRequestId,
-    );
-  } finally {
-    db.close();
-  }
+  // OpenAI streaming — transfers db ownership to ReadableStream (same pattern as Claude)
+  return buildOAIStreamingResponse({ db, conversation, messages, systemPrompt });
 }
 
 // ---------------------------------------------------------------------------
@@ -372,153 +319,84 @@ function buildClaudeStreamingResponse(params: {
 }
 
 // ---------------------------------------------------------------------------
-// OpenAI: batch (TODO R-10 — upgrade to streaming)
+// OpenAI: real token streaming (R-10)
 // ---------------------------------------------------------------------------
 
-async function runOpenAIBatch(params: {
+function buildOAIStreamingResponse(params: {
+  db: ReturnType<typeof openCliDb>;
+  conversation: ConversationRow;
   messages: ConversationMessage[];
   systemPrompt: string;
-  priorIntakeRequestId: string | null;
-  db: ReturnType<typeof openCliDb>;
-}): Promise<OAIBatchResult | Response> {
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-  const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-    { role: "system", content: params.systemPrompt },
-    ...params.messages.map((m): OpenAI.Chat.ChatCompletionMessageParam => {
-      if (m.role === "tool") {
-        return { role: "tool", content: m.content, tool_call_id: m.tool_call_id ?? "" };
-      }
-      if (m.role === "assistant") {
-        return { role: "assistant", content: m.content };
-      }
-      return { role: "user", content: m.content };
-    }),
-  ];
-
-  const toolEvents: ToolEvent[] = [];
-  let intakeRequestId = params.priorIntakeRequestId;
-  let assistantFinalContent = "";
-  let toolRound = 0;
-  const currentMessages = [...openaiMessages];
-
-  while (toolRound < MAX_TOOL_ROUNDS) {
-    toolRound++;
-    let completion: OpenAI.Chat.ChatCompletion;
-    try {
-      completion = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-        messages: currentMessages,
-        tools: AGENT_TOOL_DEFINITIONS,
-        tool_choice: "auto",
-      });
-    } catch {
-      return new Response(JSON.stringify({ error: "AI service unavailable" }), {
-        status: 502,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
-    const choice = completion.choices[0];
-    const assistantMessage = choice.message;
-
-    if (choice.finish_reason === "tool_calls" && assistantMessage.tool_calls?.length) {
-      currentMessages.push({
-        role: "assistant",
-        content: assistantMessage.content ?? null,
-        tool_calls:
-          assistantMessage.tool_calls as OpenAI.Chat.ChatCompletionMessageToolCall[],
-      });
-
-      for (const toolCall of assistantMessage.tool_calls.filter(
-        (tc): tc is OpenAI.Chat.ChatCompletionMessageFunctionToolCall =>
-          tc.type === "function",
-      )) {
-        const toolName = toolCall.function.name;
-        let toolArgs: Record<string, unknown> = {};
-        try {
-          toolArgs = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
-        } catch {
-          toolArgs = {};
-        }
-
-        toolEvents.push({ type: "tool_call", name: toolName, args: toolArgs });
-
-        let toolResult: unknown;
-        try {
-          toolResult = await executeAgentTool(toolName, toolArgs, params.db);
-        } catch {
-          toolResult = { error: "tool execution failed" };
-        }
-
-        toolEvents.push({ type: "tool_result", name: toolName, result: toolResult });
-
-        if (
-          toolName === "submit_intake" &&
-          toolResult &&
-          typeof toolResult === "object" &&
-          "intake_request_id" in toolResult
-        ) {
-          intakeRequestId = (
-            toolResult as { intake_request_id: string }
-          ).intake_request_id;
-        }
-
-        currentMessages.push({
-          role: "tool",
-          tool_call_id: toolCall.id,
-          content: JSON.stringify(toolResult),
-        });
-      }
-      continue;
-    }
-
-    assistantFinalContent = assistantMessage.content ?? "";
-    break;
-  }
-
-  return { assistantFinalContent, toolEvents, intakeRequestId };
-}
-
-// ---------------------------------------------------------------------------
-// Batch SSE response (OpenAI path — single delta, no fake word-split)
-// ---------------------------------------------------------------------------
-
-function buildBatchSSEResponse(
-  toolEvents: ToolEvent[],
-  assistantFinalContent: string,
-  conversationId: string,
-  intakeRequestId: string | null,
-): Response {
+}): Response {
+  const { db, conversation } = params;
   const encoder = new TextEncoder();
 
+  const oaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = params.messages.map((m) => {
+    if (m.role === "tool") {
+      return { role: "tool" as const, content: m.content, tool_call_id: m.tool_call_id ?? "" };
+    }
+    if (m.role === "assistant") {
+      return { role: "assistant" as const, content: m.content };
+    }
+    return { role: "user" as const, content: m.content };
+  });
+
   const responseStream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      for (const evt of toolEvents) {
-        const payload =
-          evt.type === "tool_call"
-            ? { tool_call: { name: evt.name, args: evt.args } }
-            : { tool_result: { name: evt.name, result: evt.result } };
-        controller.enqueue(encoder.encode(sseChunk(payload)));
-      }
+    async start(controller) {
+      let assistantText = "";
+      try {
+        const streamResult = await runOpenAIAgentLoopStream({
+          systemPrompt: params.systemPrompt,
+          messages: oaiMessages,
+          tools: AGENT_TOOL_DEFINITIONS,
+          executeToolFn: async (name, args) => executeAgentTool(name, args, db),
+          maxToolRounds: MAX_TOOL_ROUNDS,
+          callbacks: {
+            onDelta(text) {
+              assistantText += text;
+              controller.enqueue(encoder.encode(sseChunk({ delta: text })));
+            },
+            onToolCall(name, args) {
+              controller.enqueue(
+                encoder.encode(sseChunk({ tool_call: { name, args } })),
+              );
+            },
+            onToolResult(name, result) {
+              controller.enqueue(
+                encoder.encode(sseChunk({ tool_result: { name, result } })),
+              );
+            },
+          },
+        });
 
-      // Emit full content as a single delta (batch — no fake word-split)
-      if (assistantFinalContent) {
-        controller.enqueue(
-          encoder.encode(sseChunk({ delta: assistantFinalContent })),
+        const intakeRequestId =
+          typeof streamResult.capturedValues.intake_request_id === "string"
+            ? streamResult.capturedValues.intake_request_id
+            : (conversation.intake_request_id ?? null);
+
+        persistAssistantMessage(
+          db,
+          conversation,
+          params.messages,
+          assistantText,
+          intakeRequestId,
         );
-      }
 
-      controller.enqueue(
-        encoder.encode(
-          sseChunk({
-            done: true,
-            conversation_id: conversationId,
-            intake_submitted: intakeRequestId !== null,
-          }),
-        ),
-      );
-      controller.close();
+        controller.enqueue(
+          encoder.encode(
+            sseChunk({
+              done: true,
+              conversation_id: conversation.id,
+              intake_submitted: intakeRequestId !== null,
+            }),
+          ),
+        );
+        controller.close();
+      } catch {
+        controller.error(new Error("stream failed"));
+      } finally {
+        db.close();
+      }
     },
   });
 
@@ -527,7 +405,7 @@ function buildBatchSSEResponse(
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
-      "X-Conversation-Id": conversationId,
+      "X-Conversation-Id": conversation.id,
     },
   });
 }

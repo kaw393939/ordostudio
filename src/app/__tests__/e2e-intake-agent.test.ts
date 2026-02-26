@@ -31,7 +31,7 @@ import { POST as postIntake } from "../api/v1/intake/route";
 // ---------------------------------------------------------------------------
 
 vi.mock("openai", () => {
-  const mockCreate = vi.fn().mockResolvedValue({
+  const assistantResponse = {
     choices: [
       {
         finish_reason: "stop",
@@ -42,10 +42,24 @@ vi.mock("openai", () => {
         },
       },
     ],
+  };
+
+  // Legacy batch mock (kept in case anything still calls .create)
+  const mockCreate = vi.fn().mockResolvedValue(assistantResponse);
+
+  // Streaming mock: async iterable + finalMessage()
+  const mockStream = vi.fn().mockImplementation(() => {
+    async function* chunks() {
+      yield { choices: [{ delta: { content: "Tell me more about your goals." } }] };
+    }
+    return {
+      [Symbol.asyncIterator]: () => chunks()[Symbol.asyncIterator](),
+      finalMessage: vi.fn().mockResolvedValue(assistantResponse),
+    };
   });
 
   class MockOpenAI {
-    chat = { completions: { create: mockCreate } };
+    chat = { completions: { create: mockCreate, stream: mockStream } };
     constructor(_opts?: unknown) {}
   }
 
@@ -61,11 +75,15 @@ let fixture: StandardE2EFixture;
 beforeEach(async () => {
   fixture = await setupStandardE2EFixture();
   process.env.APPCTL_ENV = "local";
+  // Provide a mock key so getOpenAIClient() does not throw.
+  // The OpenAI class itself is mocked above — no real API calls are made.
+  process.env.OPENAI_API_KEY = "test-mock-key";
 });
 
 afterEach(async () => {
   await cleanupStandardE2EFixtures();
   vi.clearAllMocks();
+  delete process.env.OPENAI_API_KEY;
 });
 
 // ---------------------------------------------------------------------------
