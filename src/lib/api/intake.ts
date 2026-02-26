@@ -98,10 +98,7 @@ const assertCreateInput = (input: {
     if (!input.timeline || input.timeline.trim().length === 0) {
       throw new InvalidIntakeInputError("timeline_required");
     }
-
-    if (!input.constraints || input.constraints.trim().length === 0) {
-      throw new InvalidIntakeInputError("constraints_required");
-    }
+    // constraints is optional — triage team follows up to gather delivery constraints
   }
 };
 

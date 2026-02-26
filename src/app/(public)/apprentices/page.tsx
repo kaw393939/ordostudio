@@ -1,18 +1,17 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PageShell } from "@/components/layout/page-shell";
+import { Button } from "@/components/primitives/button";
 import { Card } from "@/components/primitives";
 import { Badge } from "@/components/ui/badge";
+import { buildMetadata, BOOKING_URL } from "@/lib/metadata";
 import { listApprovedApprentices } from "@/lib/api/apprentices";
 
-export const metadata: Metadata = {
-  title: "Apprentices • Studio Ordo",
+export const metadata = buildMetadata({
+  title: "Apprentices",
   description: "Approved Studio Ordo apprentices (independent AI consultants) affiliated with Studio Ordo.",
-  alternates: {
-    canonical: "/apprentices",
-  },
-};
+  canonical: "/apprentices",
+});
 
 const parseTags = (raw: string): string[] => {
   return raw
@@ -35,14 +34,9 @@ export default function ApprenticesDirectoryPage() {
         <p className="type-body-sm text-text-secondary mb-4">
           Our apprentices are independent consultants trained in the Studio Ordo method. We can help match you with the right expert for your project.
         </p>
-        <a
-          href="https://cal.com/alex-macaw/30min"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center justify-center rounded-md bg-text-primary px-6 py-3 text-sm font-medium text-bg-primary hover:bg-text-secondary transition-colors"
-        >
-          Get Matched
-        </a>
+        <Button asChild intent="primary">
+          <Link href={BOOKING_URL}>Get Matched</Link>
+        </Button>
       </div>
 
       {items.length === 0 ? (

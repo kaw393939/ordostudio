@@ -14,20 +14,24 @@ const inter = Inter({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
   title: {
-    default: "LMS 219",
-    template: "%s | LMS 219",
+    default: "Studio Ordo — AI Training That Ships",
+    template: "%s | Studio Ordo",
   },
-  description: "LMS 219 UI consuming /api/v1 HAL APIs",
+  description:
+    "Spec-driven AI training for teams and individuals. Eight capabilities, structured method, artifacts that prove how you work. 23 years, 10,000+ engineers.",
   openGraph: {
-    title: "LMS 219",
-    description: "LMS 219 UI consuming /api/v1 HAL APIs",
-    siteName: "LMS 219",
+    title: "Studio Ordo — AI Training That Ships",
+    description:
+      "Spec-driven AI training for teams and individuals. Eight capabilities, structured method, artifacts that prove how you work.",
+    siteName: "Studio Ordo",
     type: "website",
+    images: ["/og-default.png"],
   },
   twitter: {
-    card: "summary",
-    title: "LMS 219",
-    description: "LMS 219 UI consuming /api/v1 HAL APIs",
+    card: "summary_large_image",
+    title: "Studio Ordo — AI Training That Ships",
+    description:
+      "Spec-driven AI training for teams and individuals. 23 years, 10,000+ engineers.",
   },
 };
 

@@ -35,7 +35,7 @@
 
 > **Month 1.** Alex joined the studio as a junior developer with 2 years of experience and a computer science degree. They could write React components and follow tutorials. They had never written a spec, never run a CI pipeline from scratch, and their idea of testing was "it works when I click it."
 
-> **Month 3.** Alex shipped their first two gate projects — a professional portfolio site built without frameworks (hand-crafted HTML, CSS, vanilla JavaScript) and a production calculator with 100% test coverage and a CI/CD pipeline. They started keeping an AI Audit Log. Their Context Pack was rough but real. They had 15 Spell Book terms they could actually define.
+> **Month 3.** Alex shipped their first two gate projects — a professional portfolio site built without frameworks (hand-crafted HTML, CSS, vanilla JavaScript) and an Anatomy & Physics simulation with 100% test coverage and a CI/CD pipeline. They started keeping an AI Audit Log. Their Context Pack was rough but real. They had 15 Spell Book terms they could actually define.
 
 > **Month 6.** Journeyman level. Alex shipped a Design Curator Cards project using the autodidactic loop — Orient, Map, Vocabulary, Evidence, Synthesize. They chose a topic they knew nothing about, produced 30 evidence-backed cards, and had a Named Expert review their synthesis. They were learning how to learn, not just how to code.
 
@@ -56,8 +56,8 @@
 
 | Level | Title | Months | Human Edge Focus | Gate Projects | Spell Book | 40/60 Ratio |
 |-------|-------|--------|-----------------|--------------|-----------|------------|
-| 1 | Apprentice | 1–3 | Disciplined Inquiry, Professional Judgment | Portfolio Site, Production Calculator | 15 terms | 70/30 (more manual) |
-| 2 | Journeyman | 4–8 | Problem Finding, Resilience Thinking | Design Curator Cards, Feature Build | 30 terms | 50/50 (balanced) |
+| 1 | Apprentice | 1–3 | Disciplined Inquiry, Professional Judgment | Portfolio Site, Anatomy & Physics | 15 terms | 70/30 (more manual) |
+| 2 | Journeyman | 4–8 | Problem Finding, Resilience Thinking | Design Curator Cards, Humanities & Computation | 30 terms | 50/50 (balanced) |
 | 3 | Senior Journeyman | 9–14 | Epistemic Humility, Systems Thinking | Agentic Toolkit, Production Deploy | 45 terms | 35/65 (more AI) |
 | 4 | Maestro Candidate | 15–18+ | Accountable Leadership, Translation | Client Project, Community Training | 60+ terms | 20/80 (AI-primary) |
 
@@ -84,10 +84,10 @@
 >
 > *Proves: Disciplined Inquiry — you can build from first principles.*
 
-**Gate 2: Production Calculator with CI/CD**
-> A deliberately boring domain — expense tracker, unit converter, grade calculator. The point is not the product. The point is 100% test coverage, a CI/CD pipeline, and an AI Audit Log with 10+ documented decisions.
+**Gate 2: Anatomy & Physics**
+> A cross-disciplinary exploration. You will model a biological system using physics engines or mathematical proofs. The point is to bridge two distinct fields and prove you can synthesize knowledge across boundaries.
 >
-> *Proves: Professional Judgment — you can evaluate AI output and build production infrastructure.*
+> *Proves: Polymathic Synthesis — you can connect disparate domains.*
 
 ### Level 2 — Journeyman
 
@@ -96,10 +96,10 @@
 >
 > *Proves: Problem Finding — you can investigate new domains systematically.*
 
-**Gate 4: Feature Build on Existing System**
-> Merge a non-trivial feature into an existing production codebase. Write a Failure Mode Analysis. Survive a 30-minute unannounced incident drill. Maintain an Assumptions Log.
+**Gate 4: Humanities & Computation**
+> Merge computational analysis with a humanities discipline (literature, history, philosophy). Build a tool that analyzes texts, maps historical events, or models philosophical arguments.
 >
-> *Proves: Resilience Thinking — you can work in complexity and design for failure.*
+> *Proves: Cross-Domain Inquiry — you can apply technical skills to humanistic problems.*
 
 ### Level 3 — Senior Journeyman
 

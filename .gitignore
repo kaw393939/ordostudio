@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local env overrides (contain real secrets)
+.env.local
+.env.bak
+.env.*.local
+# eval harness output
+eval-results/

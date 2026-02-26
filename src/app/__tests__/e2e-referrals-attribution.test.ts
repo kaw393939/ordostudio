@@ -48,7 +48,7 @@ describe("e2e referrals attribution", () => {
 
     expect(firstBody.code).toBeTruthy();
     expect(secondBody.code).toBe(firstBody.code);
-    expect(secondBody.url).toBe(`/r/${firstBody.code}`);
+    expect(secondBody.url).toBe(`/card?ref=${firstBody.code}`);
   });
 
   it("attributes intake conversion from referral cookie and increments click + conversion counts", async () => {
@@ -74,7 +74,7 @@ describe("e2e referrals attribution", () => {
     );
 
     expect(redirect.status).toBe(302);
-    expect(redirect.headers.get("location")).toContain("/services");
+    expect(redirect.headers.get("location")).toContain("/card?ref=");
 
     const intake = await postIntake(
       new Request("http://localhost:3000/api/v1/intake", {

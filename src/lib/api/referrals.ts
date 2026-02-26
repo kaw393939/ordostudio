@@ -2,6 +2,8 @@ import { randomBytes, randomUUID } from "node:crypto";
 
 import { resolveConfig } from "@/platform/config";
 import { appendAuditLog, openCliDb } from "@/platform/runtime";
+import { writeFeedEvent } from "@/lib/api/feed-events";
+import { AFFILIATE_COMMISSION_RATE } from "@/lib/constants/commissions";
 
 export type ReferralCodeRecord = {
   id: string;
@@ -37,6 +39,13 @@ export class ReferralCodeNotFoundError extends Error {
   constructor(public readonly code: string) {
     super(`Referral code not found: ${code}`);
     this.name = "ReferralCodeNotFoundError";
+  }
+}
+
+export class SelfReferralError extends Error {
+  constructor() {
+    super("Self-referral is not permitted.");
+    this.name = "SelfReferralError";
   }
 }
 
@@ -158,6 +167,7 @@ export const recordReferralClick = (input: {
 export const recordReferralConversionForIntake = (input: {
   referralCode: string;
   intakeRequestId: string;
+  ownerUserId?: string | null;
   requestId: string;
 }): void => {
   const config = resolveConfig({ envVars: process.env });
@@ -165,6 +175,11 @@ export const recordReferralConversionForIntake = (input: {
 
   try {
     const referral = lookupReferralCode(input.referralCode);
+
+    // Policy rule 3: self-referral must be blocked.
+    if (input.ownerUserId && referral.user_id === input.ownerUserId) {
+      throw new SelfReferralError();
+    }
 
     const now = new Date().toISOString();
     const id = randomUUID();
@@ -185,6 +200,78 @@ export const recordReferralConversionForIntake = (input: {
         conversionType: "INTAKE_REQUEST",
         intakeRequestId: input.intakeRequestId,
       },
+    });
+
+    writeFeedEvent(db, {
+      userId: referral.user_id,
+      type: "ReferralActivity",
+      title: "Referral converted.",
+      description: `Code ${referral.code} — a new lead came through your referral link. Commission pending engagement completion.`,
+    });
+  } finally {
+    db.close();
+  }
+};
+
+export const recordReferralConversionForDeal = (input: {
+  dealId: string;
+  requestId: string;
+}): void => {
+  const config = resolveConfig({ envVars: process.env });
+  const db = openCliDb(config);
+
+  try {
+    // Find the referral code attributed to this deal's originating intake.
+    const referralRow = db
+      .prepare(
+        `SELECT rc.id as referral_code_id, rc.user_id, rc.code
+         FROM referral_conversions conv
+         JOIN referral_codes rc ON rc.id = conv.referral_code_id
+         WHERE conv.intake_request_id = (SELECT intake_id FROM deals WHERE id = ?)
+           AND conv.conversion_type = 'INTAKE_REQUEST'
+         LIMIT 1`,
+      )
+      .get(input.dealId) as { referral_code_id: string; user_id: string; code: string } | undefined;
+
+    if (!referralRow) {
+      return; // No referral attributed to this deal — nothing to record.
+    }
+
+    // Idempotency guard: skip if already recorded.
+    const already = db
+      .prepare(
+        "SELECT id FROM referral_conversions WHERE referral_code_id = ? AND conversion_type = 'DEAL_PAID' AND deal_id = ?",
+      )
+      .get(referralRow.referral_code_id, input.dealId);
+
+    if (already) return;
+
+    const id = randomUUID();
+    const now = new Date().toISOString();
+
+    db.prepare(
+      "INSERT INTO referral_conversions (id, referral_code_id, conversion_type, deal_id, created_at) VALUES (?, ?, 'DEAL_PAID', ?, ?)",
+    ).run(id, referralRow.referral_code_id, input.dealId, now);
+
+    appendAuditLog(db, {
+      actorType: "SERVICE",
+      actorId: null,
+      action: "api.referral.conversion",
+      targetType: "referral_code",
+      requestId: input.requestId,
+      metadata: {
+        referralCodeId: referralRow.referral_code_id,
+        code: referralRow.code,
+        conversionType: "DEAL_PAID",
+        dealId: input.dealId,
+      },
+    });
+
+    writeFeedEvent(db, {
+      userId: referralRow.user_id,
+      type: "ReferralActivity",
+      title: "Referral deal confirmed.",
+      description: `Code ${referralRow.code} — your referred lead's deal has been paid. Commission earned.`,
     });
   } finally {
     db.close();
@@ -236,7 +323,7 @@ ORDER BY conversions DESC, clicks DESC, u.email ASC
       const conversions = Number(row.conversions ?? 0);
       const conversionRate = clicks === 0 ? 0 : conversions / clicks;
       const grossAccepted = Number(row.gross_accepted_cents ?? 0);
-      const commission = Math.floor(grossAccepted * 0.25);
+      const commission = Math.floor(grossAccepted * AFFILIATE_COMMISSION_RATE);
 
       return {
         user_id: row.user_id,

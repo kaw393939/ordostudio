@@ -2,6 +2,7 @@ import { getSessionUserFromRequest } from "../../../../../lib/api/auth";
 import { hal, problem } from "../../../../../lib/api/response";
 import { getOrCreateReferralCode } from "../../../../../lib/api/referrals";
 import { withRequestLogging } from "../../../../../lib/api/request-logging";
+import { AFFILIATE_COMMISSION_RATE } from "../../../../../lib/constants/commissions";
 
 async function _GET(request: Request) {
   const user = getSessionUserFromRequest(request);
@@ -22,8 +23,8 @@ async function _GET(request: Request) {
     return hal(
       {
         code: referral.code,
-        url: `/r/${referral.code}`,
-        commission_rate: 0.25,
+        url: `/card?ref=${referral.code}`,
+        commission_rate: AFFILIATE_COMMISSION_RATE,
         disclosure:
           "This link sets a referral cookie so we can attribute consult requests back to you.",
       },

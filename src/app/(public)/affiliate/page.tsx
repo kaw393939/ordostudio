@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { PageShell } from "@/components/layout/page-shell";
 import { Card } from "@/components/primitives";
+import { Button } from "@/components/primitives/button";
 
 export const metadata: Metadata = {
   title: "Affiliates • Studio Ordo",
@@ -64,6 +65,19 @@ export default function AffiliatePage() {
           </ul>
           <p className="mt-3 type-meta text-text-muted">We optimize for trust and long-term reputation.</p>
         </Card>
+      </section>
+      <section className="mt-6 surface p-6">
+        <p className="type-body-sm text-text-secondary">
+          Commission: 20% of the project fee on any referred project that converts.
+        </p>
+        <p className="mt-2 type-body-sm text-text-secondary">
+          Attribution window: 90 days from initial scan.
+        </p>
+        <div className="mt-4">
+          <Button asChild intent="primary">
+            <Link href="/apply/affiliate">Apply to be an affiliate →</Link>
+          </Button>
+        </div>
       </section>
     </PageShell>
   );

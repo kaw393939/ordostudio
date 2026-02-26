@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -15,13 +15,16 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { useSubmitState } from "@/components/forms/use-submit-state";
-import { getRoot, follow, requestHal, type HalResource, type ProblemDetails } from "@/lib/hal-client";
+import { type ProblemDetails } from "@/lib/hal-client";
 
 const affiliateSchema = z.object({
   website: z.string().url("Must be a valid URL"),
   audienceSize: z.string().min(1, "Audience size is required"),
+  platform: z.string().min(1, "Please describe where you share content or refer work"),
+  audience_description: z.string().min(10, "Please describe your audience or network"),
 });
 
 type AffiliateFormValues = z.infer<typeof affiliateSchema>;
@@ -29,33 +32,20 @@ type AffiliateFormValues = z.infer<typeof affiliateSchema>;
 export default function AffiliateApplicationPage() {
   const router = useRouter();
   const [problem, setProblem] = useState<ProblemDetails | null>(null);
-  const [roleId, setRoleId] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Fetch the role ID for AFFILIATE
-    // In a real app, we might fetch this from an API or have it hardcoded if it's a known constant.
-    // For now, we'll fetch the roles list or assume we can get it.
-    // Actually, we can just fetch the roles from the API if we have an endpoint, or we can just pass the name to the API and let the API resolve it.
-    // Wait, the API expects `requested_role_id`. We need to get the role ID.
-    // Let's fetch the roles list.
-    // Wait, there is no public endpoint to list roles.
-    // Let's update the API to accept `requested_role_name` instead of `requested_role_id` for simplicity, or we can fetch it.
-    // Let's just fetch it from a new endpoint or update the existing one.
-  }, []);
 
   const form = useForm<AffiliateFormValues>({
     resolver: zodResolver(affiliateSchema),
     defaultValues: {
       website: "",
       audienceSize: "",
+      platform: "",
+      audience_description: "",
     },
   });
 
   const onSubmit = async (values: AffiliateFormValues) => {
     setProblem(null);
 
-    // We need the role ID. Let's assume we have a way to get it, or we can change the API to accept the role name.
-    // Let's change the API to accept `requested_role_name` instead.
     const res = await fetch("/api/v1/roles/request", {
       method: "POST",
       headers: {
@@ -77,16 +67,24 @@ export default function AffiliateApplicationPage() {
   };
 
   const { state, handleSubmit: submitWithState } = useSubmitState(
-    () => form.handleSubmit(onSubmit)()
+    () => form.handleSubmit(onSubmit)(),
   );
 
   return (
     <main className="mx-auto max-w-md p-6">
       <h1 className="text-2xl font-semibold">Apply for Affiliate Program</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Tell us about your audience.</p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Tell us about your audience.
+      </p>
 
       <Form {...form}>
-        <form className="mt-6 space-y-4" onSubmit={(e) => { e.preventDefault(); void submitWithState(); }}>
+        <form
+          className="mt-6 space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submitWithState();
+          }}
+        >
           <FormField
             control={form.control}
             name="website"
@@ -109,6 +107,40 @@ export default function AffiliateApplicationPage() {
                 <FormLabel>Audience Size</FormLabel>
                 <FormControl>
                   <Input placeholder="e.g., 10,000 subscribers" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="platform"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Where do you share content or refer work?</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="LinkedIn, GitHub, community, etc."
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="audience_description"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Who&apos;s in your audience or network?</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="Describe the people you reach — their roles, industries, interests..."
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

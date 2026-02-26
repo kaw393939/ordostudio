@@ -13,6 +13,16 @@ If you are trying to understand what the software **actually does today**, start
   - `docs/icon-map.md`
   - `src/app/globals.css`
 
+## The Bottega Model
+
+Studio Ordo operates as a **Modern Software Bottega**. We are a decentralized guild, not a traditional agency or bootcamp.
+- **The Maestro (Keith Williams):** Sets the architectural vision and acts as the final quality gate.
+- **The Journeyman (John):** The operational bridge and partner who manages commissions and supervises execution.
+- **The Apprentice:** Independent contractors (graduates) who execute the 40/60 split under the Journeyman's supervision.
+- **The Affiliate:** The decentralized sales network that generates leads for high commissions.
+
+We maintain a strict **zero obligation** policy: we do not promise jobs to students, and graduates operate as independent contractors.
+
 ## Contents
 
 ### Strategy & personas

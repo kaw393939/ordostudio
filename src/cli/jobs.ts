@@ -7,6 +7,7 @@ import { JobProcessor } from "@/platform/job-processor";
 import { buildHandlerMap } from "@/platform/job-handlers";
 import { resolveTransactionalEmailPort } from "@/platform/email";
 import { handleStripeWebhook } from "@/lib/api/payments";
+import { sweepAbandonedConversations } from "@/lib/api/conversation-sweep";
 import type { AppConfig } from "./types";
 
 function openJobQueue(config: AppConfig): SqliteJobQueue {
@@ -45,6 +46,7 @@ export const jobsProcessOnce = async (
     stripeWebhookFn: async (payload, signature, requestId) => {
       return handleStripeWebhook({ payload, signature, requestId });
     },
+    conversationSweepFn: sweepAbandonedConversations,
   });
 
   const processor = new JobProcessor(queue, handlers);
@@ -67,6 +69,7 @@ export const jobsProcessPoll = async (
     stripeWebhookFn: async (payload, signature, requestId) => {
       return handleStripeWebhook({ payload, signature, requestId });
     },
+    conversationSweepFn: sweepAbandonedConversations,
   });
 
   const processor = new JobProcessor(queue, handlers);

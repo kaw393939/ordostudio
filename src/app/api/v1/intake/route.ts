@@ -6,6 +6,9 @@ import { createIntakeRequest, InvalidIntakeInputError, listIntakeRequests, type 
 import { parseCookieHeader, recordReferralConversionForIntake } from "../../../../lib/api/referrals";
 import { withRequestLogging } from "../../../../lib/api/request-logging";
 import { withRateLimit } from "../../../../lib/api/rate-limit-wrapper";
+import { upsertContact } from "../../../../lib/api/contacts";
+import { openCliDb } from "@/platform/runtime";
+import { resolveConfig } from "@/platform/config";
 
 const requireAdmin = (request: Request) => {
   const user = getSessionUserFromRequest(request);
@@ -158,17 +161,40 @@ async function _POST(request: Request) {
       requestId: crypto.randomUUID(),
     });
 
+    // Upsert contact and link to this intake request
+    try {
+      const config = resolveConfig({ envVars: process.env });
+      const db = openCliDb(config);
+      try {
+        const contact = upsertContact(db, {
+          email: parsed.data.contact_email ?? "",
+          fullName: parsed.data.contact_name ?? null,
+          source: "FORM",
+        });
+        db.prepare(`UPDATE intake_requests SET contact_id = ? WHERE id = ?`).run(
+          contact.id,
+          created.id,
+        );
+      } finally {
+        db.close();
+      }
+    } catch {
+      // Contact upsert is non-blocking — never fail the intake submission
+    }
+
     const cookies = parseCookieHeader(request.headers.get("cookie"));
     const referralCode = cookies.so_ref;
     if (referralCode && referralCode.trim().length > 0) {
       try {
+        const sessionUser = getSessionUserFromRequest(request);
         recordReferralConversionForIntake({
           referralCode,
           intakeRequestId: created.id,
+          ownerUserId: sessionUser?.id ?? null,
           requestId: crypto.randomUUID(),
         });
       } catch {
-        // Ignore referral attribution failures (e.g., unknown code).
+        // Ignore referral attribution failures (e.g., unknown code, self-referral).
       }
     }
 

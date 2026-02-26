@@ -2,10 +2,19 @@
 
 ## 1) Ownership
 
-- Brand owner: Studio Ordo (Keith Williams).
+- Brand owner: Studio Ordo (Keith Williams & John).
 - Implementation owner: LMS 219 engineering.
 
-## 2) Change control
+## 2) Academic Firewall & Conflict of Interest Policy
+
+To protect the integrity of the BSEAI academic program and the commercial operations of Studio Ordo, the following strict firewall is maintained:
+
+- **No Direct Supervision:** Keith Williams, as Director of the BSEAI program, will **never** directly supervise, manage, or evaluate active students within the commercial operations of Studio Ordo.
+- **The Bottega Model (Zero Obligation):** Studio Ordo operates as a modern software bottega. We have **zero obligation** to hire, place, or supervise our students commercially. Graduates are independent contractors.
+- **Operational Bridge (The Journeyman):** John serves as the Journeyman and operational bridge. He is the primary supervisor for all Studio Ordo associates, contractors, and employees who are current or former students. John manages the commissions and oversees the agentic output.
+- **The 5-Year Transition:** Studio Ordo serves as the commercial vehicle for the "CEO of Agents" philosophy, offering a condensed, high-intensity 90-day transformation for working professionals. This operates in parallel to the 4-year academic model, with the long-term goal of transitioning Keith Williams to Studio Ordo full-time within a 5-year horizon.
+
+## 3) Change control
 
 ### What requires review
 - Changes to brand promise/tagline.

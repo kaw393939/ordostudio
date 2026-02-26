@@ -6,7 +6,7 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
   const { code } = await context.params;
 
   const url = new URL(request.url);
-  const redirectTarget = "/services";
+  const redirectTarget = `/card?ref=${code.toUpperCase()}`;
 
   try {
     recordReferralClick({

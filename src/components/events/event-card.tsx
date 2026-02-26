@@ -4,10 +4,10 @@ import Link from "next/link";
 import { CheckCircle2, Clock, PlayCircle, XCircle } from "lucide-react";
 import { Card } from "@/components/primitives";
 import { RelativeTime } from "@/components/forms/relative-time";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/ui";
 import { parseISO } from "@/lib/date-time";
-import { formatEventPrimaryRange, formatTimeZoneLabel } from "@/lib/event-date-ui";
+import { formatEventPrimaryRange } from "@/lib/event-date-ui";
 
 export type EventCardModel = {
   id: string;
@@ -30,7 +30,7 @@ type Pill = {
   Icon: React.ComponentType<{ className?: string }>;
 };
 
-function resolveStatusPill(model: Pick<EventCardModel, "status" | "startAt" | "endAt">, nowMs: number): Pill {
+export function resolveStatusPill(model: Pick<EventCardModel, "status" | "startAt" | "endAt">, nowMs: number): Pill {
   if (model.status === "CANCELLED") {
     return { label: "Closed", className: "border border-border-default text-text-secondary", Icon: XCircle };
   }
@@ -59,20 +59,16 @@ export function EventCard({ model, className }: { model: EventCardModel; classNa
   const [nowMs] = useState(() => Date.now());
   const pill = resolveStatusPill(model, nowMs);
   const range = formatEventPrimaryRange({ startIso: model.startAt, endIso: model.endAt, timezone: model.timezone });
-  const tzLabel = formatTimeZoneLabel({ isoString: model.startAt, timezone: model.timezone });
-  const location =
-    [model.locationText, model.meetingUrl].filter((value): value is string => Boolean(value && value.trim().length > 0)).join(" · ") || null;
 
-  const metadata = useMemo(() => {
+  const metadata = (() => {
     if (!model.metadataJson) return null;
     try {
-      return JSON.parse(model.metadataJson) as { capability?: string | null; spellBookTerms?: string[]; artifacts?: string[]; category?: string | null };
+      return JSON.parse(model.metadataJson) as { category?: string | null };
     } catch {
       return null;
     }
-  }, [model.metadataJson]);
+  })();
 
-  const capability = metadata?.capability ?? null;
   const isCommunity = metadata?.category === "COMMUNITY";
 
   return (
@@ -82,43 +78,28 @@ export function EventCard({ model, className }: { model: EventCardModel; classNa
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <Link href={model.detailHref} className="type-title text-text-primary underline motion-base">
-            {model.title}
-          </Link>
+      {/* Line 1: Date range */}
+      <p className="type-meta text-text-secondary">{range}</p>
 
-          {isCommunity ? (
-            <span className="ml-2 inline-block rounded-sm bg-state-success/15 px-2 py-0.5 type-meta text-state-success">
-              Free
-            </span>
-          ) : null}
+      {/* Line 2: Title */}
+      <Link href={model.detailHref} className="mt-1 block type-title text-text-primary underline motion-base">
+        {model.title}
+      </Link>
 
-          <div className="mt-2 space-y-1">
-            <p className="type-body-sm text-text-primary">{range}</p>
-            <p className="type-meta text-text-muted">{tzLabel}</p>
-            <p className="type-meta text-text-secondary">
-              Starts <RelativeTime iso={model.startAt} />
-            </p>
-          </div>
-
-          {location ? <p className="mt-2 type-meta text-text-muted">{location}</p> : null}
-
-          {capability ? (
-            <span className="mt-2 inline-block rounded-sm bg-surface-muted px-2 py-0.5 type-meta text-text-primary">
-              {capability}
-            </span>
-          ) : null}
-
-          {model.description ? (
-            <p className="mt-2 line-clamp-2 type-body-sm text-text-secondary">{model.description}</p>
-          ) : null}
-        </div>
-
-        <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-sm px-2 py-1 type-meta", pill.className)}>
-          <pill.Icon className="size-4" />
+      {/* Line 3: Status pill + relative time + optional Free badge */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-sm px-2 py-0.5 type-meta", pill.className)}>
+          <pill.Icon className="size-3.5" />
           {pill.label}
         </span>
+        <span className="type-meta text-text-muted">
+          <RelativeTime iso={model.startAt} />
+        </span>
+        {isCommunity ? (
+          <span className="rounded-sm bg-state-success/15 px-2 py-0.5 type-meta text-state-success">
+            Free
+          </span>
+        ) : null}
       </div>
     </Card>
   );

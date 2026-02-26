@@ -11,6 +11,7 @@ import { resolveTransactionalEmailPort } from "../../../../../platform/email";
 import { parsePayload } from "../../../../../lib/api/validate";
 import { registerSchema } from "../../../../../lib/api/schemas";
 import { withRequestLogging } from "../../../../../lib/api/request-logging";
+import { getOrCreateReferralCode } from "../../../../../lib/api/referrals";
 
 async function _POST(request: Request) {
   if (!isSameOriginMutation(request)) {
@@ -63,6 +64,13 @@ async function _POST(request: Request) {
       crypto.randomUUID(),
       resolveTransactionalEmailPort(),
     );
+    // Pre-create referral code eagerly so it appears immediately on the dashboard.
+    // Non-fatal: code is lazy-created on first dashboard visit if this fails.
+    try {
+      getOrCreateReferralCode({ userId: created.id, requestId: crypto.randomUUID() });
+    } catch (e) {
+      console.error("Failed to pre-create referral code at registration:", e);
+    }
     return hal(
       {
         id: created.id,

@@ -17,6 +17,6 @@ describe("training landing", () => {
 
   it("exports Training metadata", () => {
     expect(metadata.alternates?.canonical).toBe("/services");
-    expect(metadata.title).toBe("Training • Studio Ordo");
+    expect(metadata.title).toBe("Training");
   });
 });

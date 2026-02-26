@@ -1,9 +1,22 @@
 import { UserRegistrationHistoryReadRow } from "../../adapters/sqlite/read-repositories";
 import { MyEngagementTimelineItem, EngagementFollowUpAction } from "./engagements";
+import type { StoredFeedEvent } from "./feed-events";
+
+export type { StoredFeedEvent };
 
 export interface FeedItem {
   id: string;
-  type: "AccountRegistration" | "EngagementTimelineItem" | "FollowUpAction" | "OnboardingProgress" | "SubscriptionEvent" | "TriageTicket";
+  type:
+    | "AccountRegistration"
+    | "EngagementTimelineItem"
+    | "FollowUpAction"
+    | "OnboardingProgress"
+    | "SubscriptionEvent"
+    | "TriageTicket"
+    | "RoleRequestUpdate"
+    | "ReferralActivity"
+    | "PayoutStatus"
+    | "IntakeAbandoned";
   timestamp: string;
   title: string;
   description: string;
@@ -14,6 +27,8 @@ export interface AggregateFeedArgs {
   registrations: UserRegistrationHistoryReadRow[];
   timelineItems: MyEngagementTimelineItem[];
   followUpActions: EngagementFollowUpAction[];
+  feedEvents?: StoredFeedEvent[];
+  payoutActionItem?: FeedItem | null;
 }
 
 export interface AggregateFeedOptions {
@@ -59,7 +74,20 @@ export function aggregateFeed(
     });
   }
 
-  // Sort chronologically (newest first)
+  for (const event of data.feedEvents ?? []) {
+    items.push({
+      id: `feed-${event.id}`,
+      type: event.type,
+      timestamp: event.created_at,
+      title: event.title,
+      description: event.description,
+      actionUrl: event.action_url ?? undefined,
+    });
+  }
+
+  if (data.payoutActionItem) {
+    items.push(data.payoutActionItem);
+  }
   items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   // Filter

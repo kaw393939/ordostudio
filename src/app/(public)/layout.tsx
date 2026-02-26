@@ -3,6 +3,7 @@ import { MobileNavDrawer } from "@/components/navigation/mobile-nav-drawer";
 import { UserMenu } from "@/components/navigation/user-menu";
 import { getMenuContext } from "@/lib/navigation/menu-audience";
 import Link from "next/link";
+import { FloatingChatGate } from "@/components/chat/floating-chat-gate";
 
 export default async function PublicLayout({
   children,
@@ -51,6 +52,7 @@ export default async function PublicLayout({
           />
         </div>
       </footer>
+      <FloatingChatGate />
     </>
   );
 }

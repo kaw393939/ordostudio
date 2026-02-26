@@ -68,9 +68,9 @@ const menus: Record<MenuName, readonly MenuItem[]> = {
     { id: "studio", label: "Studio", href: "/studio", match: "exact", includeInSitemap: true },
     { id: "studio-report", label: "Submit report", href: "/studio/report", match: "exact", roles: ["APPRENTICE"], audience: ["user", "admin"] },
     { id: "book", label: "Book consult", href: "/services/request", match: "exact", includeInSitemap: true },
-    { id: "login", label: "Login", href: "/login", match: "exact", audience: ["guest"] },
   ]),
   publicFooter: registerMenu("publicFooter", [
+    { id: "join", label: "Join the Studio", href: "/join", match: "exact", includeInSitemap: true },
     { id: "apprentices", label: "Apprentices", href: "/apprentices", match: "prefix", includeInSitemap: true },
     { id: "affiliate", label: "Affiliates", href: "/affiliate", match: "exact", includeInSitemap: true },
     { id: "insights", label: "Insights", href: "/insights", match: "exact", includeInSitemap: true },
@@ -78,12 +78,15 @@ const menus: Record<MenuName, readonly MenuItem[]> = {
     { id: "newsletter", label: "Newsletter", href: "/newsletter", match: "exact", includeInSitemap: true },
     { id: "terms", label: "Terms", href: "/terms", match: "exact", includeInSitemap: true },
     { id: "privacy", label: "Privacy", href: "/privacy", match: "exact", includeInSitemap: true },
+    { id: "login", label: "Login", href: "/login", match: "exact", audience: ["guest"] },
+    { id: "staff-access", label: "Staff access", href: "/admin", match: "exact", audience: ["admin"] },
   ]),
   adminHeaderQuick: registerMenu("adminHeaderQuick", [
     { id: "admin-home", label: "Admin Console", href: "/admin", match: "exact", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
     { id: "admin-approvals", label: "Approvals", href: "/admin/approvals", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
     { id: "admin-deals", label: "Deals", href: "/admin/deals", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
     { id: "admin-intake", label: "Intake", href: "/admin/intake", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN"] },
+    { id: "admin-crm", label: "CRM", href: "/admin/crm", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
     { id: "admin-events", label: "Events", href: "/admin/events", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
     { id: "admin-ledger", label: "Ledger", href: "/admin/ledger", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN"] },
   ]),
@@ -98,6 +101,7 @@ const menus: Record<MenuName, readonly MenuItem[]> = {
 
     { id: "admin-offers", label: "Offers", href: "/admin/offers", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
     { id: "admin-intake", label: "Intake", href: "/admin/intake", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN"] },
+    { id: "admin-crm", label: "CRM", href: "/admin/crm", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN", "MAESTRO"] },
     { id: "admin-commercial", label: "Commercial", href: "/admin/commercial", match: "prefix", audience: ["admin"], roles: ["SUPER_ADMIN"] },
 
     { id: "admin-ledger", label: "Ledger", href: "/admin/ledger", match: "prefix", audience: ["admin"], roles: ["ADMIN", "SUPER_ADMIN"] },

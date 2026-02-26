@@ -5,7 +5,7 @@ const labels = (audience: MenuAudience) => resolveMenu("publicHeader", audience)
 
 describe("menu registry", () => {
   it("shows login to guests and hides account", () => {
-    expect(labels("guest")).toEqual(["Training", "Events", "Studio", "Book consult", "Login"]);
+    expect(labels("guest")).toEqual(["Training", "Events", "Studio", "Book consult"]);
   });
 
   it("shows site links to authenticated users without account items", () => {
@@ -32,6 +32,7 @@ describe("menu registry", () => {
       "Admin Console",      "Approvals",      "Deals",
       "Events",
       "Intake",
+      "CRM",
       "Ledger",
       "Newsletter",
     ]);
@@ -39,6 +40,7 @@ describe("menu registry", () => {
     expect(resolveMenuForContext("adminPrimary", { audience: "admin", roles: ["MAESTRO"] }).map((item) => item.label)).toEqual([
       "Admin Console",      "Approvals",      "Deals",
       "Events",
+      "CRM",
       "Newsletter",
     ]);
 
@@ -51,6 +53,7 @@ describe("menu registry", () => {
       "Engagements",
       "Offers",
       "Intake",
+      "CRM",
       "Commercial",
       "Ledger",
       "Measurement",

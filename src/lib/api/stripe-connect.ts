@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { resolveConfig } from "@/platform/config";
 import { openCliDb, appendAuditLog } from "@/platform/runtime";
+import { writeFeedEvent } from "@/lib/api/feed-events";
 import {
   createConnectAccount,
   createConnectAccountLink,
@@ -193,6 +194,18 @@ WHERE user_id = ? AND provider = 'STRIPE'
         payouts_enabled: stripe.payouts_enabled,
       },
     });
+
+    // Write feed event when payout account becomes active for the first time
+    const wasPayoutsEnabled = Boolean(existing.payouts_enabled);
+    const nowPayoutsEnabled = stripe.payouts_enabled;
+    if (!wasPayoutsEnabled && nowPayoutsEnabled) {
+      writeFeedEvent(db, {
+        userId: input.userId,
+        type: "PayoutStatus",
+        title: "Payout account active.",
+        description: "Commissions will be sent automatically when deals close.",
+      });
+    }
 
     const row = db
       .prepare(

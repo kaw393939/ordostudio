@@ -135,8 +135,8 @@
 
 | Level | Title | Months | What You Ship |
 |-------|-------|--------|--------------|
-| 1 | Apprentice | 1–3 | Portfolio + Production Calculator |
-| 2 | Journeyman | 4–8 | Curator Cards + Feature Build |
+| 1 | Apprentice | 1–3 | Portfolio + Anatomy & Physics |
+| 2 | Journeyman | 4–8 | Curator Cards + Humanities & Computation |
 | 3 | Senior Journeyman | 9–14 | Agentic Toolkit + Production Deploy |
 | 4 | Maestro Candidate | 15–18+ | Client Project + Community Training |
 

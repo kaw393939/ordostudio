@@ -1170,6 +1170,392 @@ CREATE INDEX IF NOT EXISTS idx_triage_tickets_status ON triage_tickets(status);
 CREATE INDEX IF NOT EXISTS idx_triage_tickets_category ON triage_tickets(category);
 `,
   },
+  {
+    name: "031_update_gate_projects",
+    sql: `
+-- Update gate projects to reflect the new polymath/inquiry philosophy
+UPDATE gate_projects SET 
+  title = 'Gate 2: Anatomy & Physics',
+  slug = 'gate-02-anatomy-physics',
+  summary = 'Build a simulation or visualization that models a physical or biological system. Prove you can translate domain rules from outside software into working code.',
+  acceptance_criteria_json = '["System models a real-world physical or biological process", "Domain rules are explicitly documented before coding", "AI used to generate the simulation logic based on your rules", "Visual output accurately reflects the domain constraints"]',
+  rubric_json = '{"domain_accuracy": "Does the model respect the rules of the physical/biological system?", "translation": "Are the domain rules clearly translated into software constraints?", "orchestration": "Did you successfully direct the AI to build the simulation?"}',
+  artifact_description = 'Working simulation + Domain Rules Document'
+WHERE slug = 'gate-02-audit-trail';
+
+UPDATE gate_projects SET 
+  title = 'Gate 4: Humanities & Computation',
+  slug = 'gate-04-humanities-computation',
+  summary = 'Apply computational methods to a problem in the humanities (history, literature, art). Demonstrate that you can operate across entirely different disciplines.',
+  acceptance_criteria_json = '["Project addresses a specific question in a humanities discipline", "Uses data analysis, NLP, or computer vision on a non-technical dataset", "Epistemic boundary clearly stated: what the computation cannot capture about the human element", "Findings presented in a format native to the chosen discipline"]',
+  rubric_json = '{"cross_disciplinary": "Does the project respect the methods of the humanities discipline?", "technical_application": "Is the computational method appropriate for the question?", "boundaries": "Are the limitations of the technical approach acknowledged?"}',
+  artifact_description = 'Humanities Analysis Report + Code Repository'
+WHERE slug = 'gate-04-data-assumptions';
+`,
+  },
+  {
+    name: "032_engagements_core",
+    sql: `
+CREATE TABLE IF NOT EXISTS engagements (
+  id             TEXT PRIMARY KEY,
+  type           TEXT NOT NULL CHECK(type IN ('PROJECT_COMMISSION','MAESTRO_TRAINING')),
+  client_name    TEXT,
+  student_id     TEXT,
+  project_type   TEXT,
+  total_value    INTEGER,
+  commission     INTEGER,
+  referral_code  TEXT,
+  track          TEXT CHECK(track IN ('cohort','advisory')),
+  cohort_start   TEXT,
+  payment_status TEXT NOT NULL DEFAULT 'PENDING' CHECK(payment_status IN ('PENDING','RECEIVED','REFUNDED')),
+  status         TEXT NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE','COMPLETED','CANCELLED')),
+  notes          TEXT,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_engagements_status ON engagements(status);
+CREATE INDEX IF NOT EXISTS idx_engagements_referral_code ON engagements(referral_code);
+`,
+  },
+  {
+    name: "033_ledger_entries_engagement_fk",
+    sql: `
+-- Make deal_id nullable and add engagement_id FK so admin engagements
+-- can create ledger entries without requiring a marketplace deal record.
+-- Also rebuilds stripe_payout_executions to restore its FK reference after
+-- the ledger_entries rename.
+PRAGMA foreign_keys=off;
+
+ALTER TABLE ledger_entries RENAME TO ledger_entries_old;
+
+CREATE TABLE IF NOT EXISTS ledger_entries (
+  id                   TEXT PRIMARY KEY,
+  deal_id              TEXT,
+  engagement_id        TEXT,
+  entry_type           TEXT NOT NULL,
+  beneficiary_user_id  TEXT,
+  amount_cents         INTEGER NOT NULL,
+  currency             TEXT NOT NULL,
+  status               TEXT NOT NULL,
+  earned_at            TEXT NOT NULL,
+  approved_at          TEXT,
+  paid_at              TEXT,
+  approved_by_user_id  TEXT,
+  metadata_json        TEXT,
+  created_at           TEXT NOT NULL,
+  updated_at           TEXT NOT NULL,
+  FOREIGN KEY (deal_id) REFERENCES deals(id) ON DELETE CASCADE,
+  FOREIGN KEY (engagement_id) REFERENCES engagements(id) ON DELETE CASCADE,
+  FOREIGN KEY (beneficiary_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (approved_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  CHECK (entry_type IN ('PROVIDER_PAYOUT','REFERRER_COMMISSION','PLATFORM_REVENUE')),
+  CHECK (status IN ('EARNED','APPROVED','PAID','VOID'))
+);
+
+INSERT INTO ledger_entries (
+  id, deal_id, entry_type, beneficiary_user_id, amount_cents, currency,
+  status, earned_at, approved_at, paid_at, approved_by_user_id, metadata_json,
+  created_at, updated_at
+)
+SELECT
+  id, deal_id, entry_type, beneficiary_user_id, amount_cents, currency,
+  status, earned_at, approved_at, paid_at, approved_by_user_id, metadata_json,
+  created_at, updated_at
+FROM ledger_entries_old;
+
+DROP TABLE ledger_entries_old;
+
+-- Rebuild stripe_payout_executions so its FK points to the new ledger_entries
+-- (SQLite auto-rename tracking would have pointed it to the dropped table).
+ALTER TABLE stripe_payout_executions RENAME TO stripe_payout_executions_old;
+
+CREATE TABLE IF NOT EXISTS stripe_payout_executions (
+  ledger_entry_id  TEXT PRIMARY KEY,
+  provider         TEXT NOT NULL,
+  idempotency_key  TEXT NOT NULL,
+  stripe_transfer_id TEXT,
+  status           TEXT NOT NULL,
+  attempt_count    INTEGER NOT NULL DEFAULT 0,
+  last_attempted_at TEXT,
+  last_error       TEXT,
+  created_at       TEXT NOT NULL,
+  updated_at       TEXT NOT NULL,
+  FOREIGN KEY (ledger_entry_id) REFERENCES ledger_entries(id) ON DELETE CASCADE,
+  UNIQUE(provider, idempotency_key),
+  CHECK (provider IN ('STRIPE')),
+  CHECK (status IN ('PENDING','SUCCEEDED','FAILED'))
+);
+
+INSERT INTO stripe_payout_executions (
+  ledger_entry_id, provider, idempotency_key, stripe_transfer_id, status,
+  attempt_count, last_attempted_at, last_error, created_at, updated_at
+)
+SELECT
+  ledger_entry_id, provider, idempotency_key, stripe_transfer_id, status,
+  attempt_count, last_attempted_at, last_error, created_at, updated_at
+FROM stripe_payout_executions_old;
+
+DROP TABLE stripe_payout_executions_old;
+
+CREATE INDEX IF NOT EXISTS idx_ledger_entries_status ON ledger_entries(status);
+CREATE INDEX IF NOT EXISTS idx_ledger_entries_deal_id ON ledger_entries(deal_id);
+CREATE INDEX IF NOT EXISTS idx_ledger_entries_engagement_id ON ledger_entries(engagement_id);
+CREATE INDEX IF NOT EXISTS idx_stripe_connect_accounts_status ON stripe_connect_accounts(status);
+CREATE INDEX IF NOT EXISTS idx_stripe_payout_executions_status ON stripe_payout_executions(status);
+
+PRAGMA foreign_keys=on;
+`,
+  },
+  {
+    name: "034_feed_events_core",
+    sql: `
+CREATE TABLE IF NOT EXISTS feed_events (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL,
+  type        TEXT NOT NULL,
+  title       TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  action_url  TEXT,
+  created_at  TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_feed_events_user_id ON feed_events(user_id);
+`,
+  },
+  {
+    name: "035_payout_tax_info",
+    sql: `
+CREATE TABLE IF NOT EXISTS payout_tax_info (
+  id           TEXT PRIMARY KEY,
+  user_id      TEXT NOT NULL UNIQUE,
+  legal_name   TEXT NOT NULL,
+  entity_type  TEXT NOT NULL CHECK(entity_type IN ('INDIVIDUAL','LLC','S_CORP','C_CORP')),
+  address_line1 TEXT NOT NULL,
+  city         TEXT NOT NULL,
+  state        TEXT NOT NULL,
+  postal_code  TEXT NOT NULL,
+  country      TEXT NOT NULL DEFAULT 'US',
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+`,
+  },
+  {
+    name: "036_site_settings",
+    sql: `
+CREATE TABLE IF NOT EXISTS site_settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+INSERT OR IGNORE INTO site_settings (key, value) VALUES
+  ('contact.phone',                  '+1 (000) 000-0000'),
+  ('contact.email',                  'hello@studioordo.com'),
+  ('contact.booking_url',            'https://cal.com/studioordo'),
+  ('brand.name',                     'Studio Ordo'),
+  ('brand.tagline',                  'Bring order to AI in software delivery.'),
+  ('commission.rate_pct',            '20'),
+  ('guild.affiliate_min_payout_usd', '50');
+`,
+  },
+  {
+    name: "037_intake_agent_tables",
+    sql: `
+CREATE TABLE IF NOT EXISTS intake_conversations (
+  id                TEXT PRIMARY KEY,
+  session_id        TEXT NOT NULL,
+  intake_request_id TEXT,
+  messages          TEXT NOT NULL DEFAULT '[]',
+  status            TEXT NOT NULL CHECK (status IN ('ACTIVE','COMPLETED','ABANDONED'))
+                    DEFAULT 'ACTIVE',
+  created_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  updated_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  FOREIGN KEY (intake_request_id) REFERENCES intake_requests(id)
+);
+
+CREATE TABLE IF NOT EXISTS maestro_availability (
+  id              TEXT PRIMARY KEY,
+  maestro_user_id TEXT NOT NULL,
+  start_at        TEXT NOT NULL,
+  end_at          TEXT NOT NULL,
+  status          TEXT NOT NULL CHECK (status IN ('OPEN','BOOKED','BLOCKED'))
+                  DEFAULT 'OPEN',
+  created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  FOREIGN KEY (maestro_user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS bookings (
+  id                      TEXT PRIMARY KEY,
+  intake_request_id       TEXT NOT NULL,
+  maestro_availability_id TEXT NOT NULL,
+  prospect_email          TEXT NOT NULL,
+  status                  TEXT NOT NULL CHECK (status IN ('PENDING','CONFIRMED','CANCELLED'))
+                          DEFAULT 'PENDING',
+  created_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  FOREIGN KEY (intake_request_id)       REFERENCES intake_requests(id),
+  FOREIGN KEY (maestro_availability_id) REFERENCES maestro_availability(id)
+);
+`,
+  },
+  {
+    name: "038_contacts_crm",
+    sql: `
+CREATE TABLE IF NOT EXISTS contacts (
+  id          TEXT PRIMARY KEY,
+  email       TEXT NOT NULL UNIQUE,
+  full_name   TEXT,
+  user_id     TEXT,
+  source      TEXT NOT NULL DEFAULT 'AGENT'
+              CHECK (source IN ('AGENT','FORM','REFERRAL','MANUAL')),
+  status      TEXT NOT NULL DEFAULT 'LEAD'
+              CHECK (status IN ('LEAD','QUALIFIED','ONBOARDING','ACTIVE','CHURNED')),
+  notes       TEXT,
+  assigned_to TEXT,
+  created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  FOREIGN KEY (user_id)     REFERENCES users(id),
+  FOREIGN KEY (assigned_to) REFERENCES users(id)
+);
+
+ALTER TABLE intake_requests ADD COLUMN contact_id TEXT REFERENCES contacts(id);
+`,
+  },
+  {
+    name: "039_onboarding_workflow",
+    sql: `
+CREATE TABLE IF NOT EXISTS onboarding_tasks (
+  id          TEXT PRIMARY KEY,
+  slug        TEXT NOT NULL UNIQUE,
+  title       TEXT NOT NULL,
+  description TEXT NOT NULL,
+  role        TEXT NOT NULL,
+  position    INTEGER NOT NULL DEFAULT 0,
+  required    INTEGER NOT NULL DEFAULT 1
+);
+
+INSERT OR IGNORE INTO onboarding_tasks (id, slug, title, description, role, position, required) VALUES
+  ('ot-profile-complete',     'profile.complete',          'Complete your profile',            'Add your bio, photo, and contact details.',              'all',        1, 1),
+  ('ot-affiliate-card',       'affiliate.card-order',      'Order your QR business card',      'Order your branded QR card via the studio portal.',     'affiliate',  2, 1),
+  ('ot-affiliate-stripe',     'affiliate.stripe-setup',    'Set up payout account',            'Connect Stripe to receive commission payouts.',          'affiliate',  3, 1),
+  ('ot-apprentice-intro',     'apprentice.intro-call',     'Schedule intro call with Maestro', 'Book your onboarding call with your assigned Maestro.', 'apprentice', 2, 1),
+  ('ot-apprentice-survey',    'apprentice.skills-survey',  'Complete skills survey',           'Tell us about your current skills and learning goals.',  'apprentice', 3, 1);
+
+CREATE TABLE IF NOT EXISTS onboarding_progress (
+  id           TEXT PRIMARY KEY,
+  user_id      TEXT NOT NULL,
+  task_id      TEXT NOT NULL,
+  completed    INTEGER NOT NULL DEFAULT 0,
+  completed_at TEXT,
+  created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  UNIQUE (user_id, task_id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (task_id) REFERENCES onboarding_tasks(id)
+);
+`,
+  },
+  {
+    name: "040_workflow_engine",
+    sql: `
+CREATE TABLE IF NOT EXISTS workflow_rules (
+  id             TEXT PRIMARY KEY,
+  name           TEXT NOT NULL,
+  description    TEXT,
+  trigger_event  TEXT NOT NULL,
+  condition_json TEXT,
+  action_type    TEXT NOT NULL CHECK(action_type IN (
+                   'UPDATE_CONTACT_STATUS',
+                   'ASSIGN_TO_STAFF',
+                   'SEND_EMAIL',
+                   'CREATE_FEED_EVENT'
+                 )),
+  action_config  TEXT NOT NULL,
+  enabled        INTEGER NOT NULL DEFAULT 1,
+  position       INTEGER NOT NULL DEFAULT 0,
+  created_by     TEXT NOT NULL DEFAULT 'system',
+  created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  updated_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
+INSERT OR IGNORE INTO workflow_rules
+  (id, name, description, trigger_event, condition_json, action_type, action_config, enabled, position) VALUES
+  ('wf-intake-assign',
+   'Auto-assign intake to first staff',
+   'Assigns the intake contact to a default staff member on submission.',
+   'TriageTicket',
+   NULL,
+   'ASSIGN_TO_STAFF',
+   '{"staff_user_id":"system"}',
+   0, 1),
+  ('wf-intake-email',
+   'Send intake confirmation email',
+   'Sends a confirmation email to the contact on intake submission.',
+   'TriageTicket',
+   NULL,
+   'SEND_EMAIL',
+   '{"template":"intake_received","to":"contact"}',
+   0, 2),
+  ('wf-qualify-on-approval',
+   'Mark contact QUALIFIED on role request approval',
+   'Advances contact lifecycle to QUALIFIED when a role request is approved.',
+   'RoleRequestUpdate',
+   '{"field":"payload.status","operator":"eq","value":"APPROVED"}',
+   'UPDATE_CONTACT_STATUS',
+   '{"to_status":"QUALIFIED"}',
+   0, 3),
+  ('wf-followup-3day',
+   '3-day follow-up if no booking',
+   'Creates a follow-up action 72 hours after intake submission.',
+   'TriageTicket',
+   NULL,
+   'CREATE_FEED_EVENT',
+   '{"type":"FollowUpAction","title":"Follow-up due","description":"Intake submitted 3 days ago — no response yet.","delay_hours":72}',
+   0, 4),
+  ('wf-welcome-provision',
+   'Welcome email on account provision',
+   'Sends a welcome email when a new account is provisioned via the onboarding workflow.',
+   'OnboardingProgress',
+   '{"field":"payload.title","operator":"eq","value":"Account provisioned"}',
+   'SEND_EMAIL',
+   '{"template":"welcome","to":"contact"}',
+   0, 5);
+
+CREATE TABLE IF NOT EXISTS workflow_executions (
+  id            TEXT PRIMARY KEY,
+  rule_id       TEXT NOT NULL,
+  feed_event_id TEXT NOT NULL,
+  status        TEXT NOT NULL CHECK(status IN ('SUCCESS','FAILED','SKIPPED')),
+  error         TEXT,
+  executed_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  FOREIGN KEY (rule_id)       REFERENCES workflow_rules(id),
+  FOREIGN KEY (feed_event_id) REFERENCES feed_events(id)
+);
+`,
+  },
+  {
+    name: "041_governance_policy_rails",
+    sql: `
+/* ---- Extend referral_conversions to track deal-paid events ---- */
+CREATE TABLE IF NOT EXISTS referral_conversions_v2 (
+  id                TEXT PRIMARY KEY,
+  referral_code_id  TEXT NOT NULL,
+  conversion_type   TEXT NOT NULL,
+  intake_request_id TEXT,
+  deal_id           TEXT,
+  created_at        TEXT NOT NULL,
+  FOREIGN KEY (referral_code_id)  REFERENCES referral_codes(id) ON DELETE CASCADE,
+  FOREIGN KEY (intake_request_id) REFERENCES intake_requests(id) ON DELETE SET NULL,
+  FOREIGN KEY (deal_id)           REFERENCES deals(id) ON DELETE SET NULL,
+  CHECK (conversion_type IN ('INTAKE_REQUEST', 'DEAL_PAID'))
+);
+INSERT OR IGNORE INTO referral_conversions_v2
+  (id, referral_code_id, conversion_type, intake_request_id, created_at)
+  SELECT id, referral_code_id, conversion_type, intake_request_id, created_at
+  FROM referral_conversions;
+DROP TABLE referral_conversions;
+ALTER TABLE referral_conversions_v2 RENAME TO referral_conversions;
+`,
+  },
 ];
 
 const ensureMetaTable = (db: Database.Database): void => {
@@ -2045,11 +2431,21 @@ const seedStudioOrdoFixture = (
 
     /* ---------- Gate Projects ---------- */
     const insertGate = db.prepare(
-      `INSERT OR IGNORE INTO gate_projects
+      `INSERT INTO gate_projects
          (id, slug, title, level_slug, ordinal, summary,
           acceptance_criteria_json, rubric_json, estimated_hours,
           artifact_description, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(slug) DO UPDATE SET
+         title=excluded.title,
+         level_slug=excluded.level_slug,
+         ordinal=excluded.ordinal,
+         summary=excluded.summary,
+         acceptance_criteria_json=excluded.acceptance_criteria_json,
+         rubric_json=excluded.rubric_json,
+         estimated_hours=excluded.estimated_hours,
+         artifact_description=excluded.artifact_description,
+         updated_at=excluded.updated_at`,
     );
 
     const gateProjects = [
@@ -2065,15 +2461,15 @@ const seedStudioOrdoFixture = (
         artifact: "Context Pack v1 document + AI Audit Log",
       },
       {
-        slug: "gate-02-audit-trail",
-        title: "Gate 2: AI Audit Trail",
+        slug: "gate-02-anatomy-physics",
+        title: "Gate 2: Anatomy & Physics",
         levelSlug: "apprentice",
         ordinal: 2,
-        summary: "Maintain a comprehensive AI Audit Log for an entire feature. Show that you can evaluate AI output against specifications and make documented decisions.",
-        criteria: ["AI Audit Log with 20+ entries", "Each entry includes prompt, response, decision (accept/reject/modify), and rationale", "At least 5 rejected suggestions with clear reasoning", "Summary analysis of AI accuracy patterns"],
-        rubric: { judgment: "Are accept/reject decisions well-reasoned?", documentation: "Is the log detailed enough to reproduce decisions?", patterns: "Does the summary identify useful accuracy patterns?" },
+        summary: "Build a simulation or visualization that models a physical or biological system. Prove you can translate domain rules from outside software into working code.",
+        criteria: ["System models a real-world physical or biological process", "Domain rules are explicitly documented before coding", "AI used to generate the simulation logic based on your rules", "Visual output accurately reflects the domain constraints"],
+        rubric: { domain_accuracy: "Does the model respect the rules of the physical/biological system?", translation: "Are the domain rules clearly translated into software constraints?", orchestration: "Did you successfully direct the AI to build the simulation?" },
         hours: 25,
-        artifact: "AI Audit Log (20+ entries) + pattern analysis",
+        artifact: "Working simulation + Domain Rules Document",
       },
       {
         slug: "gate-03-problem-decomposition",
@@ -2087,15 +2483,15 @@ const seedStudioOrdoFixture = (
         artifact: "Problem Decomposition document + Context Pack v2",
       },
       {
-        slug: "gate-04-data-assumptions",
-        title: "Gate 4: Data Assumptions Document",
+        slug: "gate-04-humanities-computation",
+        title: "Gate 4: Humanities & Computation",
         levelSlug: "journeyman",
         ordinal: 2,
-        summary: "Document what your data cannot say. Identify assumptions, limitations, and failure modes in a data-driven system.",
-        criteria: ["Data Assumptions Document with 10+ documented assumptions", "Each assumption includes impact assessment and mitigation strategy", "RAG or ML evaluation with honest failure mode analysis", "Epistemic boundary clearly stated: what the system cannot know"],
-        rubric: { honesty: "Does the document acknowledge real limitations?", rigor: "Are assumptions and mitigations specific and actionable?", boundaries: "Are epistemic boundaries clearly defined?" },
+        summary: "Apply computational methods to a problem in the humanities (history, literature, art). Demonstrate that you can operate across entirely different disciplines.",
+        criteria: ["Project addresses a specific question in a humanities discipline", "Uses data analysis, NLP, or computer vision on a non-technical dataset", "Epistemic boundary clearly stated: what the computation cannot capture about the human element", "Findings presented in a format native to the chosen discipline"],
+        rubric: { cross_disciplinary: "Does the project respect the methods of the humanities discipline?", technical_application: "Is the computational method appropriate for the question?", boundaries: "Are the limitations of the technical approach acknowledged?" },
         hours: 25,
-        artifact: "Data Assumptions Document + failure mode analysis",
+        artifact: "Humanities Analysis Report + Code Repository",
       },
       {
         slug: "gate-05-failure-mode-analysis",
@@ -2206,7 +2602,7 @@ export const dbSeed = (config: AppConfig, requestId: string, fixture?: string): 
 
   const db = openDb(config);
   try {
-    const roleNames = ["USER", "ADMIN", "SUPER_ADMIN", "AFFILIATE", "APPRENTICE"];
+    const roleNames = ["USER", "ADMIN", "SUPER_ADMIN", "AFFILIATE", "APPRENTICE", "ASSOCIATE", "CERTIFIED_CONSULTANT", "STAFF"];
 
     const run = db.transaction(() => {
       for (const roleName of roleNames) {

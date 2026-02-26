@@ -1,15 +1,12 @@
-import type { Metadata } from "next";
+import { buildMetadata } from "@/lib/metadata";
 import EventsPageClient from "./page-client";
 
-export const metadata: Metadata = {
+export const metadata = buildMetadata({
   title: "Events",
-  openGraph: {
-    title: "Events",
-  },
-  alternates: {
-    canonical: "/events",
-  },
-};
+  description:
+    "Discover upcoming Studio Ordo workshops, leadership briefings, and community events.",
+  canonical: "/events",
+});
 
 export default function EventsPage() {
   return <EventsPageClient />;

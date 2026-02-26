@@ -1,27 +1,21 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { PageShell } from "@/components/layout/page-shell";
+import { Button } from "@/components/primitives/button";
+import { buildMetadata, BOOKING_URL } from "@/lib/metadata";
 
-export const metadata: Metadata = {
-  title: "About \u2022 Studio Ordo",
+export const metadata = buildMetadata({
+  title: "About",
   description:
-    "Built by a teacher. Powered by evidence. 23 years, 10,000+ engineers, and a method that works.",
-  openGraph: {
-    title: "About \u2022 Studio Ordo",
-    description:
-      "Built by a teacher. Powered by evidence. 23 years, 10,000+ engineers, and a method that works.",
-  },
-  alternates: {
-    canonical: "/about",
-  },
-};
+    "A Modern Software Bottega. Built by a teacher. Powered by evidence. 23 years, 10,000+ engineers, and a method that works.",
+  canonical: "/about",
+});
 
 export default function AboutPage() {
   return (
-    <PageShell title="About" subtitle="Built by a teacher. Powered by evidence.">
-      {/* Section 01 \u2014 The Founder */}
+    <PageShell title="About" subtitle="A Modern Software Bottega. Built by a teacher. Powered by evidence.">
+      {/* Section 01 — The Maestro */}
       <section className="surface p-6">
-        <p className="type-meta text-text-muted">The Founder</p>
+        <p className="type-meta text-text-muted">The Maestro</p>
         <h2 className="mt-2 type-title text-text-primary">Keith Williams</h2>
         <div className="mt-4 space-y-3 type-body-sm text-text-secondary">
           <p>
@@ -37,22 +31,32 @@ export default function AboutPage() {
             of its kind, now with 300+ students enrolled.
           </p>
           <p>
-            Along the way, he served as CTO at a startup that was acquired by Anthem Ventures. He consulted
-            internationally in Zambia, building data systems in environments where nothing could be taken for granted
-            &mdash; not power, not connectivity, not assumptions about how software &ldquo;should&rdquo; work. He earned
-            a black belt in Taekwondo. He raised a family. He watched 10,000 students graduate.
+            At Studio Ordo, Keith acts as the Maestro. He sets the architectural vision, defines the &ldquo;Double Stripping&rdquo; thesis, and serves as the final quality gate for all commissions. He does not manage the day-to-day execution of trainees, preserving the strict ethical firewall between his academic role and the commercial guild.
           </p>
-          <p>And he noticed something.</p>
         </div>
       </section>
 
-      {/* Section 02 \u2014 The Origin Story */}
+      {/* Section 02 — The Journeyman */}
+      <section className="mt-6 surface p-6">
+        <p className="type-meta text-text-muted">The Journeyman</p>
+        <h2 className="mt-2 type-title text-text-primary">John</h2>
+        <div className="mt-4 space-y-3 type-body-sm text-text-secondary">
+          <p>
+            John is the operational bridge of Studio Ordo. With an MS in Data Science from NJIT, he is an experienced engineer and an early adopter of agentic coding tools, with multiple AI-assisted projects shipped to production.
+          </p>
+          <p>
+            As the Journeyman, John manages the commissions, oversees the agentic output, and directly supervises the Apprentices. He ensures that the Maestro&apos;s architectural vision is executed flawlessly through the 40/60 split of manual understanding and agentic execution.
+          </p>
+        </div>
+      </section>
+
+      {/* Section 03 — The Origin Story */}
       <section className="mt-6 surface p-6">
         <p className="type-meta text-text-muted">The Origin</p>
         <h2 className="mt-2 type-title text-text-primary">What 10,000 graduates taught me.</h2>
-        <div className="mt-4 space-y-3 type-body-sm italic text-text-secondary">
+        <blockquote className="mt-4 space-y-3 type-body-sm italic text-text-secondary border-l-2 border-border-subtle pl-4">
           <p>
-            &ldquo;I&apos;ve watched 10,000 students graduate from my programs. I&apos;ve seen them go to Amazon,
+            I&apos;ve watched 10,000 students graduate from my programs. I&apos;ve seen them go to Amazon,
             Google, JPMorgan, Goldman Sachs, and hundreds of companies in between. I know who thrives and who stalls.
           </p>
           <p>
@@ -69,7 +73,7 @@ export default function AboutPage() {
           </p>
           <p>
             I built Studio Ordo to close that gap. Not with certificates or online courses. With the same approach
-            that&apos;s worked for centuries: a workshop where you learn by producing real work under the guidance of
+            that&apos;s worked for centuries: a Bottega where you learn by producing real work under the guidance of
             someone who&apos;s done it 10,000 times.
           </p>
           <p>
@@ -80,60 +84,68 @@ export default function AboutPage() {
           <p>
             I named it Ordo &mdash; Latin for order &mdash; because that&apos;s what&apos;s missing. The AI is here.
             The infrastructure is being built. What&apos;s missing is order: structured methods, professional
-            vocabulary, and the discipline to evaluate what machines produce.&rdquo;
+            vocabulary, and the discipline to evaluate what machines produce.
           </p>
-        </div>
+          <footer className="not-italic type-meta text-text-muted pt-2">
+            &mdash; Keith Williams, Founder
+          </footer>
+        </blockquote>
       </section>
 
-      {/* Section 03 \u2014 What We Believe */}
+      {/* Section 04 — What We Believe */}
       <section className="mt-6 surface p-6">
         <p className="type-meta text-text-muted">Philosophy</p>
         <h2 className="mt-2 type-title text-text-primary">What we believe.</h2>
         <div className="mt-4 space-y-4">
           <div>
-            <p className="type-label text-text-primary">1. Method over talent.</p>
+            <p className="type-label text-text-primary">1. Inquiry over answers.</p>
             <p className="mt-1 type-body-sm text-text-secondary">
-              Talent is distributed normally. Method is teachable. We teach method.
+              AI has all the answers. The value of the human is in asking the right questions. We teach Disciplined Inquiry.
             </p>
           </div>
           <div>
-            <p className="type-label text-text-primary">2. Artifacts over credentials.</p>
+            <p className="type-label text-text-primary">2. Polymaths over specialists.</p>
+            <p className="mt-1 type-body-sm text-text-secondary">
+              Specialization is for algorithms. The future belongs to the generalist who can direct specialized AI agents across product, design, and infrastructure.
+            </p>
+          </div>
+          <div>
+            <p className="type-label text-text-primary">3. Artifacts over credentials.</p>
             <p className="mt-1 type-body-sm text-text-secondary">
               A portfolio of shipped work proves more than any certificate. Every engagement produces evaluable artifacts.
             </p>
           </div>
           <div>
-            <p className="type-label text-text-primary">3. Judgment over speed.</p>
+            <p className="type-label text-text-primary">4. Judgment over speed.</p>
             <p className="mt-1 type-body-sm text-text-secondary">
-              AI is fast. The question is whether the output is correct, appropriate, and responsible. We train the
-              judgment to know.
+              AI is fast. The question is whether the output is correct, appropriate, and responsible. We train the judgment to know.
             </p>
           </div>
           <div>
-            <p className="type-label text-text-primary">4. Vocabulary over vibes.</p>
+            <p className="type-label text-text-primary">5. Vocabulary over vibes.</p>
             <p className="mt-1 type-body-sm text-text-secondary">
-              Professional vocabulary creates precision. Precision creates communication. Communication creates teams
-              that ship.
-            </p>
-          </div>
-          <div>
-            <p className="type-label text-text-primary">5. Evidence over hype.</p>
-            <p className="mt-1 type-body-sm text-text-secondary">
-              We cite our sources. MIT RCT data, BLS projections, METR capability tracking, salary surveys. If we
-              can&apos;t source it, we don&apos;t claim it.
+              Professional vocabulary creates precision. Precision creates communication. Communication creates teams that ship.
             </p>
           </div>
           <div>
             <p className="type-label text-text-primary">6. Accountability over completion.</p>
             <p className="mt-1 type-body-sm text-text-secondary">
-              Finishing is not enough. Can you explain what you built? Can you defend the decisions you made? Can you put
-              your name on it?
+              Finishing is not enough. Can you explain what you built? Can you defend the decisions you made? Can you put your name on it?
+            </p>
+          </div>
+          <div>
+            <p className="type-label text-text-primary">7. Real productivity over junk food work.</p>
+            <p className="mt-1 type-body-sm text-text-secondary">
+              Eight AI-generated reports that you skim but don&apos;t synthesize. Code you let the agent write and never understood.
+              Outputs that look productive and build no judgment. Jack Clark (co-founder, Anthropic) named it: &ldquo;junk food work.&rdquo;
+              Every Studio practice &mdash; the Context Pack, the AI Audit Log, the Maestro code review &mdash; is designed to make
+              that pattern structurally impossible.
             </p>
           </div>
         </div>
       </section>
 
-      {/* Section 04 \u2014 EverydayAI */}
+      {/* Section 05 — EverydayAI */}
       <section className="mt-6 surface p-6">
         <p className="type-meta text-text-muted">Community</p>
         <h2 className="mt-2 type-title text-text-primary">EverydayAI &mdash; where the community gathers.</h2>
@@ -167,7 +179,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Section 05 \u2014 The Name */}
+      {/* Section 06 — The Name */}
       <section className="mt-6 surface p-6">
         <p className="type-meta text-text-muted">The Name</p>
         <h2 className="mt-2 type-title text-text-primary">Ordo.</h2>
@@ -189,7 +201,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Section 06 \u2014 The Data */}
+      {/* Section 07 — The Data */}
       <section className="mt-6 grid gap-3 lg:grid-cols-2">
         <div className="surface p-6">
           <p className="type-meta text-text-muted">The Acceleration</p>
@@ -199,6 +211,7 @@ export default function AboutPage() {
             <li>Language model benchmarks saturated in 12 months</li>
             <li>$600B+ in hyperscaler AI capital expenditure in 2026</li>
             <li>Dario Amodei (Anthropic CEO): &ldquo;We are in the fastest technology transition in human history&rdquo;</li>
+            <li>Jack Clark (Anthropic co-founder, The Ezra Klein Show, Feb 2026): &ldquo;Maybe a guild-style philosophy of maintaining human excellence&rdquo; &mdash; describing what organizations will need to build</li>
           </ul>
         </div>
         <div className="surface p-6">
@@ -221,14 +234,9 @@ export default function AboutPage() {
       <section className="mt-6 surface-elevated p-6 text-center rounded-lg border border-border-subtle">
         <h2 className="type-title text-text-primary">Ready to bring order to AI in your organization?</h2>
         <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
-          <a
-            href="https://cal.com/alex-macaw/30min"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center justify-center rounded-md bg-text-primary px-6 py-3 text-sm font-medium text-bg-primary hover:bg-text-secondary transition-colors"
-          >
-            Book a Technical Consult
-          </a>
+          <Button asChild intent="primary">
+            <Link href={BOOKING_URL}>Book a Technical Consult</Link>
+          </Button>
           <Link href="/newsletter" className="type-label text-text-secondary hover:text-text-primary underline underline-offset-4">
             Subscribe to the Ordo Brief &rarr;
           </Link>

@@ -2,6 +2,9 @@ import { getSessionUserFromRequest } from "../../../../../lib/api/auth";
 import { hal, problem } from "../../../../../lib/api/response";
 import { withRequestLogging } from "../../../../../lib/api/request-logging";
 import { createRoleRequest, getRoleByName, getPendingRoleRequest } from "../../../../../lib/api/roles";
+import { openCliDb } from "../../../../../platform/runtime";
+import { resolveConfig } from "../../../../../platform/config";
+import { writeFeedEvent } from "../../../../../lib/api/feed-events";
 import { z } from "zod";
 
 const requestSchema = z.object({
@@ -55,8 +58,13 @@ async function _POST(request: Request) {
   const { requested_role_name, context } = parsed.data;
 
   // Check if role exists
-  const db = require("../../../../../platform/runtime").openCliDb(require("../../../../../platform/config").resolveConfig({ envVars: process.env }));
-  const role = db.prepare("SELECT id FROM roles WHERE name = ?").get(requested_role_name);
+  const db = openCliDb(resolveConfig({ envVars: process.env }));
+  let role: { id: string } | undefined;
+  try {
+    role = db.prepare("SELECT id FROM roles WHERE name = ?").get(requested_role_name) as { id: string } | undefined;
+  } finally {
+    db.close();
+  }
   if (!role) {
     return problem(
       {
@@ -84,6 +92,20 @@ async function _POST(request: Request) {
   }
 
   const roleRequest = createRoleRequest(user.id, role.id, context || {});
+
+  // Write feed event for the applicant
+  try {
+    const feedDb = openCliDb(resolveConfig({ envVars: process.env }));
+    writeFeedEvent(feedDb, {
+      userId: user.id,
+      type: "RoleRequestUpdate",
+      title: "Application submitted — pending review.",
+      description: `Your application for ${requested_role_name} is being reviewed.`,
+    });
+    feedDb.close();
+  } catch (e) {
+    console.error("Failed to write feed event for role request submission:", e);
+  }
 
   return new Response(JSON.stringify(roleRequest), {
     status: 201,

@@ -3,12 +3,12 @@
 ## 1) Core message architecture
 
 ### Primary message
-**Bring order to AI in software delivery.**
+**Cultivating the Modern Polymath for the AI Era.**
 
 ### Supporting messages (pick 1–2 per page)
-- Spec-driven workflows for AI-augmented engineering.
-- Evaluation gates that make AI outputs measurable.
-- Training + apprenticeship designed for real teams.
+- We don't teach you how to code; we teach you how to inquire.
+- Specialization is for algorithms. The future belongs to the generalist who can direct specialized AI agents.
+- Learn the meta-skills of the CEO: agentic orchestration, product engineering, and autonomous systems.
 
 ### Proof line (use consistently)
 - “20+ years teaching engineers · 10,000+ students”
@@ -28,17 +28,17 @@ Rules:
 ## 3) Page-specific copy blocks
 
 ### Homepage hero (CTO/Eng Manager)
-- Headline: Bring order to AI in software delivery.
-- Subhead: Train your engineers to ship with AI using specs, tests, and evaluation gates.
+- Headline: Cultivate the Modern Polymath.
+- Subhead: Train your engineers to direct specialized AI agents across product, design, and infrastructure.
 - Proof: 20+ years teaching engineers · 10,000+ students
 
 ### Homepage hero (Individual)
-- Headline: Vibe code with standards.
-- Subhead: Learn a spec-driven method that turns AI speed into reliable delivery.
+- Headline: Specialization is for algorithms.
+- Subhead: Learn the meta-skills of the CEO. Master agentic orchestration, product engineering, and autonomous systems.
 - Proof: 20+ years teaching engineers · 10,000+ students
 
 ### Studio section (apprenticeship)
-Studio Ordo is a modern workshop. You’ll learn by shipping — and you’ll leave with artifacts that prove how you work.
+Studio Ordo is a modern Renaissance workshop. You’ll learn by shipping diverse, cross-disciplinary projects—and you’ll leave with a Codex that proves how you inquire.
 
 ## 4) Objections → responses
 

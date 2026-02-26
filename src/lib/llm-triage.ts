@@ -15,6 +15,7 @@ import {
   derivePriority,
   isValidCategory,
 } from "./triage";
+import { triageWithAnthropic } from "./llm-anthropic";
 
 /* ── keyword rules (stub implementation) ────────────── */
 
@@ -115,13 +116,24 @@ export interface TriageInput {
 /**
  * Run triage on arbitrary text.
  *
- * Uses OpenAI when API__OPENAI_API_KEY is set;
- * otherwise falls back to deterministic keyword rules.
+ * Priority order:
+ *  1. Anthropic Claude (when ANTHROPIC_API_KEY is set)
+ *  2. OpenAI GPT (when API__OPENAI_API_KEY is set)
+ *  3. Deterministic keyword rules (fallback, no API key required)
  */
 export async function triageRequest(input: TriageInput): Promise<LlmTriageResult> {
-  const apiKey = process.env.API__OPENAI_API_KEY;
-  if (apiKey) {
-    return triageWithOpenAI(input.text, apiKey);
+  const anthropicKey = process.env.ANTHROPIC_API_KEY ?? process.env.API__ANTHROPIC_API_KEY;
+  if (anthropicKey) {
+    try {
+      return await triageWithAnthropic(input.text, anthropicKey);
+    } catch {
+      // Fall through to OpenAI or rules
+    }
+  }
+
+  const openaiKey = process.env.API__OPENAI_API_KEY;
+  if (openaiKey) {
+    return triageWithOpenAI(input.text, openaiKey);
   }
   return triageWithRules(input.text);
 }

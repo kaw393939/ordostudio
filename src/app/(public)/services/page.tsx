@@ -1,18 +1,14 @@
-import type { Metadata } from "next";
+import Link from "next/link";
 import { PageShell } from "@/components/layout/page-shell";
+import { Button } from "@/components/primitives/button";
+import { buildMetadata, BOOKING_URL } from "@/lib/metadata";
 import { ServicesCards } from "@/components/experiments/services-cards";
 
-export const metadata: Metadata = {
-  title: "Training • Studio Ordo",
+export const metadata = buildMetadata({
+  title: "Training",
   description: "Training tracks for every stage of AI capability. Workshops, team programs, and advisory engagements.",
-  openGraph: {
-    title: "Training • Studio Ordo",
-    description: "Training tracks for every stage of AI capability. Workshops, team programs, and advisory engagements.",
-  },
-  alternates: {
-    canonical: "/services",
-  },
-};
+  canonical: "/services",
+});
 
 export default function ServicesPage() {
   return (
@@ -48,14 +44,9 @@ export default function ServicesPage() {
           Not sure which track fits? Book a 30-minute technical consult. No pitch deck. We&apos;ll discuss your
           team&apos;s current state and recommend a starting point.
         </p>
-        <a
-          href="https://cal.com/alex-macaw/30min"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center justify-center rounded-md bg-text-primary px-6 py-3 text-sm font-medium text-bg-primary hover:bg-text-secondary transition-colors"
-        >
-          Book a Technical Consult
-        </a>
+        <Button asChild intent="primary">
+          <Link href={BOOKING_URL}>Book a Technical Consult</Link>
+        </Button>
       </section>
     </PageShell>
   );

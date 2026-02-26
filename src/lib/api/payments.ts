@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { openCliDb, appendAuditLog } from "@/platform/runtime";
 import { resolveConfig } from "@/platform/config";
 import { transitionDealStatus } from "@/lib/api/deals";
+import { recordReferralConversionForDeal } from "@/lib/api/referrals";
 import { constructWebhookEvent, createCheckoutSession, createRefund } from "@/adapters/stripe/stripe-client";
 
 export type PaymentProvider = "STRIPE";
@@ -253,6 +254,13 @@ INSERT INTO stripe_webhook_events (
             enforceGate: false,
           });
 
+          // Record the deal-paid referral conversion (idempotent).
+          try {
+            recordReferralConversionForDeal({ dealId, requestId: input.requestId });
+          } catch {
+            // Non-blocking — payment is already confirmed.
+          }
+
           appendAuditLog(db, {
             actorType: "SERVICE",
             actorId: null,
@@ -341,6 +349,13 @@ export const refundDealPaymentAdmin = async (input: {
       requestId: input.requestId,
       metadata: { dealId: input.dealId, paymentId: payment.id },
     });
+
+    // Policy rule 8: void any EARNED or APPROVED referral commissions on refund.
+    const refundedAt = new Date().toISOString();
+    db.prepare(
+      `UPDATE ledger_entries SET status = 'VOID', updated_at = ?
+       WHERE deal_id = ? AND entry_type = 'REFERRER_COMMISSION' AND status IN ('EARNED', 'APPROVED')`,
+    ).run(refundedAt, input.dealId);
 
     const updated = loadLatestPayment(db, input.dealId);
     if (!updated) {

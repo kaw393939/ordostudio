@@ -4,16 +4,19 @@ import { render, screen } from "@testing-library/react";
 import Home, { metadata } from "../(public)/page";
 
 describe("public home brand", () => {
-  it("renders primary CTAs", () => {
+  it("renders the homepage main content area", () => {
     render(<Home />);
 
-    expect(screen.getByRole("link", { name: "View training tracks" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Book a technical consult" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Join the studio" })).toBeInTheDocument();
+    // Homepage is now a full-screen chat UI — verify the primary content area
+    const main = document.getElementById("main-content");
+    expect(main).toBeInTheDocument();
   });
 
   it("exports Studio Ordo metadata", () => {
-    expect(metadata.title).toContain("Studio Ordo");
+    const title = typeof metadata.title === "object" && metadata.title !== null && "absolute" in metadata.title
+      ? metadata.title.absolute
+      : String(metadata.title ?? "");
+    expect(title).toContain("Studio Ordo");
     expect(metadata.alternates?.canonical).toBe("/");
   });
 });

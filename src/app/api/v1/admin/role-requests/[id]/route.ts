@@ -5,6 +5,7 @@ import { updateRoleRequestStatus } from "../../../../../../lib/api/roles";
 import { resolveTransactionalEmailPort } from "../../../../../../platform/email";
 import { openCliDb } from "../../../../../../platform/runtime";
 import { resolveConfig } from "../../../../../../platform/config";
+import { writeFeedEvent } from "../../../../../../lib/api/feed-events";
 import { z } from "zod";
 
 const requireAdmin = (request: Request) => {
@@ -96,7 +97,7 @@ async function _PATCH(request: Request, { params }: { params: Promise<{ id: stri
     );
   }
 
-  // Send email notification
+  // Send email notification and write feed event
   try {
     const db = openCliDb(resolveConfig({ envVars: process.env }));
     const userRow = db.prepare("SELECT email FROM users WHERE id = ?").get(updated.user_id) as { email: string } | undefined;
@@ -118,6 +119,20 @@ async function _PATCH(request: Request, { params }: { params: Promise<{ id: stri
         textBody,
         htmlBody: `<p>${textBody}</p>`,
         tag: "role-request-update",
+      });
+
+      // Write feed event for the applicant
+      writeFeedEvent(db, {
+        userId: updated.user_id,
+        type: "RoleRequestUpdate",
+        title:
+          status === "APPROVED"
+            ? `Your ${roleRow.name} application was approved.`
+            : `Your ${roleRow.name} application was not approved.`,
+        description:
+          status === "APPROVED"
+            ? "Welcome to the guild."
+            : "Questions? Contact us at studio@studioordo.com",
       });
     }
   } catch (e) {

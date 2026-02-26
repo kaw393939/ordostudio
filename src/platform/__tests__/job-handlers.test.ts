@@ -175,20 +175,22 @@ describe("stripe.webhook.process handler", () => {
 });
 
 describe("buildHandlerMap", () => {
-  it("builds a map with all 4 handler types", () => {
+  it("builds a map with all 5 handler types", () => {
     const port = new FakeEmailPort();
     const map = buildHandlerMap({
       emailPort: port,
       newsletterDispatchFn: async () => ({ dispatched: 0 }),
       discordSyncFn: async () => {},
       stripeWebhookFn: async () => ({}),
+      conversationSweepFn: () => ({ swept: 0, contactsCreated: 0 }),
     });
 
-    expect(map.size).toBe(4);
+    expect(map.size).toBe(5);
     expect(map.has("email.send")).toBe(true);
     expect(map.has("newsletter.send")).toBe(true);
     expect(map.has("discord.sync")).toBe(true);
     expect(map.has("stripe.webhook.process")).toBe(true);
+    expect(map.has("conversation.sweep")).toBe(true);
   });
 });
 

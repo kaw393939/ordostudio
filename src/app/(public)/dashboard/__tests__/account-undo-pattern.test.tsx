@@ -1,318 +1,174 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+/**
+ * Dashboard page – render & interaction tests.
+ *
+ * Covers the current ActionFeed-based dashboard:
+ *   - Loading user profile and rendering the feed
+ *   - Empty state when there are no feed items
+ *   - Error state when /api/v1/me fails
+ *   - Feed cards rendered for different item types
+ */
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
 
 import AccountPage from "../page";
 
+/* ── mock setup ───────────────────────────────────────── */
+
 const mocks = vi.hoisted(() => {
-  const requestHal = vi.fn(async (href: string, init?: { method?: string; body?: string }) => {
-    if (href === "/api/v1/me") {
-      return {
-        ok: true,
-        data: {
-          id: "usr_1",
-          email: "user@example.com",
-          status: "ACTIVE",
-          roles: ["USER"],
-          last_login_at: "2026-11-01T10:00:00.000Z",
-          _links: {
-            events: { href: "/events" },
-          },
-        },
-      };
-    }
+  const requestHal = vi.fn();
 
-    if (href === "/api/v1/me/feed?page=1&limit=10") {
-      return {
-        ok: true,
-        data: {
-          count: 0,
-          items: [],
-        },
-      };
-    }
-
-    if (href === "/api/v1/account/attention") {
-      return {
-        ok: true,
-        data: {
-          open_actions: 1,
-          overdue_actions: 0,
-          pending_reminders: 1,
-          badge_count: 1,
-        },
-      };
-    }
-
-    if (href === "/api/v1/account/activity") {
-      return {
-        ok: true,
-        data: {
-          count: 0,
-          items: [],
-        },
-      };
-    }
-
-    if (href === "/api/v1/account/registrations") {
-      return {
-        ok: true,
-        data: {
-          count: 1,
-          items: [
-            {
-              registration_id: "reg_1",
-              event_id: "evt_1",
-              event_slug: "future-event",
-              event_title: "Future Event",
-              event_status: "PUBLISHED",
-              start_at: "2026-11-10T10:00:00.000Z",
-              end_at: "2026-11-10T11:00:00.000Z",
-              timezone: "UTC",
-              delivery_mode: "ONLINE",
-              engagement_type: "INDIVIDUAL",
-              location_text: null,
-              meeting_url: null,
-              instructor_state: "TBA",
-              instructor_name: null,
-              status: "REGISTERED",
-              _links: {
-                event: { href: "/events/future-event" },
-                "app:cancel": { href: "/api/v1/events/future-event/registrations/usr_1" },
-              },
-            },
-          ],
-        },
-      };
-    }
-
-    if (href === "/api/v1/account/engagements") {
-      return {
-        ok: true,
-        data: {
-          count: 1,
-          items: [
-            {
-              registration_id: "reg_1",
-              event_slug: "future-event",
-              event_title: "Future Event",
-              start_at: "2026-11-10T10:00:00.000Z",
-              timezone: "UTC",
-              timeline_status: "UPCOMING",
-              outcomes_count: 0,
-              open_action_items: 1,
-              blocked_action_items: 0,
-              artifacts_count: 0,
-              pending_reminders: 1,
-              next_step: null,
-              feedback_submitted: false,
-            },
-          ],
-        },
-      };
-    }
-
-    if (href === "/api/v1/account/engagements/future-event/follow-up") {
-      return {
-        ok: true,
-        data: {
-          actions_count: 1,
-          reminders_count: 1,
-          actions: [
-            {
-              id: "act_1",
-              description: "Send the summary email",
-              status: "OPEN",
-              due_at: "2026-11-05T10:00:00.000Z",
-              owner_user_id: "usr_1",
-            },
-          ],
-          reminders: [
-            {
-              id: "rem_1",
-              action_item_id: "act_1",
-              reminder_type: "UPCOMING",
-              reminder_for: "2026-11-04T10:00:00.000Z",
-              status: "PENDING",
-            },
-          ],
-        },
-      };
-    }
-
-    if (href === "/api/v1/account/engagements/future-event/reminders/rem_1" && init?.method === "PATCH") {
-      return { ok: true, data: { acknowledged: true } };
-    }
-
-    if (href === "/api/v1/account/engagements/future-event/actions/act_1" && init?.method === "PATCH") {
-      return { ok: true, data: { id: "act_1", status: "DONE" } };
-    }
-
-    if (href === "/api/v1/events/future-event/registrations/usr_1" && init?.method === "DELETE") {
-      return { ok: true, data: { status: "CANCELLED" } };
-    }
-
-    return {
-      ok: false,
-      problem: {
-        type: "about:blank",
-        title: "Not mocked",
-        status: 500,
-        detail: `No mock for ${href}`,
-      },
-    };
-  });
-
-  return {
-    toastSuccess: vi.fn(() => "toast-id"),
-    toastError: vi.fn(() => "toast-error-id"),
-    toastDismiss: vi.fn(),
-    requestHal,
-  };
+  return { requestHal };
 });
 
-vi.mock("sonner", () => {
-  return {
-    toast: {
-      success: mocks.toastSuccess,
-      error: mocks.toastError,
-      dismiss: mocks.toastDismiss,
-    },
-  };
-});
-
-vi.mock("@/lib/hal-client", async () => {
-  return {
-    requestHal: mocks.requestHal,
-  };
-});
+vi.mock("@/lib/hal-client", () => ({
+  requestHal: mocks.requestHal,
+}));
 
 const requestHal = mocks.requestHal;
 
-const toastSuccess = mocks.toastSuccess;
-const toastError = mocks.toastError;
-const toastDismiss = mocks.toastDismiss;
+/* ── helpers ──────────────────────────────────────────── */
 
-describe("Account undo pattern", () => {
+function mockMeOk(roles: string[] = ["USER"]) {
+  return {
+    ok: true,
+    data: {
+      id: "usr_1",
+      email: "user@example.com",
+      status: "ACTIVE",
+      roles,
+      last_login_at: "2026-11-01T10:00:00.000Z",
+      _links: { events: { href: "/events" } },
+    },
+  };
+}
+
+function mockFeedItems(items: Array<{ id: string; type: string; title: string; description: string; timestamp: string; actionUrl?: string }>) {
+  return {
+    ok: true,
+    data: { count: items.length, items, hasMore: false },
+  };
+}
+
+const EMPTY_FEED = mockFeedItems([]);
+
+/* ── tests ────────────────────────────────────────────── */
+
+describe("Dashboard page", () => {
   beforeEach(() => {
-    process.env.NEXT_PUBLIC_FF_UNDO_DELETE = "true";
-    toastSuccess.mockClear();
-    toastError.mockClear();
-    toastDismiss.mockClear();
-    requestHal.mockClear();
+    requestHal.mockReset();
   });
 
-  afterEach(() => {
-    delete process.env.NEXT_PUBLIC_FF_UNDO_DELETE;
-    vi.useRealTimers();
-  });
+  it("shows empty state when feed has no items", async () => {
+    requestHal.mockImplementation(async (href: string) => {
+      if (href === "/api/v1/me") return mockMeOk();
+      if (href.startsWith("/api/v1/me/feed")) return EMPTY_FEED;
+      return { ok: true, data: {} };
+    });
 
-  it("delays reminder dismissal PATCH until 8 seconds elapse", async () => {
-    const user = userEvent.setup();
     render(<AccountPage />);
 
-    await screen.findByRole("tab", { name: /Follow-Ups/i });
-    await user.click(screen.getByRole("tab", { name: /Follow-Ups/i }));
-
-    const acknowledge = await screen.findByRole("button", { name: "Acknowledge" });
-
-    vi.useFakeTimers();
-    fireEvent.click(acknowledge);
-
-    expect(requestHal).not.toHaveBeenCalledWith(
-      "/api/v1/account/engagements/future-event/reminders/rem_1",
-      expect.objectContaining({ method: "PATCH" }),
-    );
-
-    vi.advanceTimersByTime(8000);
-    await Promise.resolve();
-
-    expect(requestHal).toHaveBeenCalledWith(
-      "/api/v1/account/engagements/future-event/reminders/rem_1",
-      expect.objectContaining({ method: "PATCH" }),
-    );
+    expect(
+      await screen.findByText("No upcoming events or actions required."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("You're all caught up! Check back later for new updates."),
+    ).toBeInTheDocument();
   });
 
-  it("cancels reminder dismissal when Undo is clicked", async () => {
-    const user = userEvent.setup();
+  it("renders upcoming event cards from feed", async () => {
+    requestHal.mockImplementation(async (href: string) => {
+      if (href === "/api/v1/me") return mockMeOk();
+      if (href.startsWith("/api/v1/me/feed"))
+        return mockFeedItems([
+          {
+            id: "reg-1",
+            type: "AccountRegistration",
+            title: "Future Event",
+            description: "Starts Nov 10",
+            timestamp: "2026-11-10T10:00:00.000Z",
+            actionUrl: "/events/future-event",
+          },
+        ]);
+      return { ok: true, data: {} };
+    });
+
     render(<AccountPage />);
 
-    await screen.findByRole("tab", { name: /Follow-Ups/i });
-    await user.click(screen.getByRole("tab", { name: /Follow-Ups/i }));
-
-    const acknowledge = await screen.findByRole("button", { name: "Acknowledge" });
-
-    vi.useFakeTimers();
-    fireEvent.click(acknowledge);
-
-    const lastToastArgs = toastSuccess.mock.calls.at(-1);
-    expect(lastToastArgs?.[0]).toBe("Reminder dismissed.");
-    const options = lastToastArgs?.[1] as { action?: { onClick?: () => void } } | undefined;
-    expect(options?.action?.onClick).toBeTypeOf("function");
-
-    options?.action?.onClick?.();
-
-    vi.advanceTimersByTime(8000);
-    await Promise.resolve();
-
-    expect(requestHal).not.toHaveBeenCalledWith(
-      "/api/v1/account/engagements/future-event/reminders/rem_1",
-      expect.objectContaining({ method: "PATCH" }),
-    );
+    expect(await screen.findByText("Future Event")).toBeInTheDocument();
+    expect(screen.getByText("Upcoming Event")).toBeInTheDocument();
+    expect(screen.getByText("View Details")).toBeInTheDocument();
   });
 
-  it("delays follow-up Mark Done PATCH until 8 seconds elapse", async () => {
-    const user = userEvent.setup();
+  it("renders action-required cards for follow-up actions", async () => {
+    requestHal.mockImplementation(async (href: string) => {
+      if (href === "/api/v1/me") return mockMeOk();
+      if (href.startsWith("/api/v1/me/feed"))
+        return mockFeedItems([
+          {
+            id: "action-1",
+            type: "FollowUpAction",
+            title: "Send the summary email",
+            description: "Overdue follow-up",
+            timestamp: "2026-11-05T10:00:00.000Z",
+            actionUrl: "/events/future-event",
+          },
+        ]);
+      return { ok: true, data: {} };
+    });
+
     render(<AccountPage />);
 
-    await screen.findByRole("tab", { name: /Follow-Ups/i });
-    await user.click(screen.getByRole("tab", { name: /Follow-Ups/i }));
-
-    const markDone = await screen.findByRole("button", { name: "Mark Done" });
-
-    vi.useFakeTimers();
-    fireEvent.click(markDone);
-
-    expect(requestHal).not.toHaveBeenCalledWith(
-      "/api/v1/account/engagements/future-event/actions/act_1",
-      expect.objectContaining({ method: "PATCH" }),
-    );
-
-    vi.advanceTimersByTime(8000);
-    await Promise.resolve();
-
-    expect(requestHal).toHaveBeenCalledWith(
-      "/api/v1/account/engagements/future-event/actions/act_1",
-      expect.objectContaining({ method: "PATCH" }),
-    );
+    expect(await screen.findByText("Send the summary email")).toBeInTheDocument();
+    expect(screen.getByText("Action Required")).toBeInTheDocument();
+    expect(screen.getByText("Complete Action")).toBeInTheDocument();
   });
 
-  it("delays registration cancellation DELETE until 8 seconds elapse", async () => {
-    const user = userEvent.setup();
+  it("shows problem panel when /api/v1/me returns an error", async () => {
+    requestHal.mockImplementation(async (href: string) => {
+      if (href === "/api/v1/me")
+        return {
+          ok: false,
+          problem: {
+            type: "about:blank",
+            title: "Unauthorized",
+            status: 401,
+            detail: "Active session required.",
+          },
+        };
+      return { ok: true, data: {} };
+    });
+
     render(<AccountPage />);
 
-    await screen.findByRole("tab", { name: /My Registrations/i });
-    await user.click(screen.getByRole("tab", { name: /My Registrations/i }));
+    expect(await screen.findByText("Sign in required")).toBeInTheDocument();
+    const loginLinks = screen.getAllByText(/Go to login/i);
+    expect(loginLinks.length).toBeGreaterThanOrEqual(1);
+  });
 
-    const cancelButton = await screen.findByRole("button", { name: /Cancel registration/i });
-    await user.click(cancelButton);
+  it("fetches /api/v1/me and /api/v1/me/feed on mount", async () => {
+    requestHal.mockImplementation(async (href: string) => {
+      if (href === "/api/v1/me") return mockMeOk();
+      if (href.startsWith("/api/v1/me/feed")) return EMPTY_FEED;
+      return { ok: true, data: {} };
+    });
 
-    const confirm = await screen.findByRole("button", { name: "Confirm cancel" });
+    render(<AccountPage />);
 
-    vi.useFakeTimers();
-    fireEvent.click(confirm);
+    await screen.findByText("No upcoming events or actions required.");
 
-    expect(requestHal).not.toHaveBeenCalledWith(
-      "/api/v1/events/future-event/registrations/usr_1",
-      expect.objectContaining({ method: "DELETE" }),
-    );
+    expect(requestHal).toHaveBeenCalledWith("/api/v1/me");
+    expect(requestHal).toHaveBeenCalledWith("/api/v1/me/feed?page=1&limit=10");
+  });
 
-    vi.advanceTimersByTime(8000);
-    await Promise.resolve();
+  it("shows correct subtitle for operator users", async () => {
+    requestHal.mockImplementation(async (href: string) => {
+      if (href === "/api/v1/me") return mockMeOk(["USER", "ADMIN"]);
+      if (href.startsWith("/api/v1/me/feed")) return EMPTY_FEED;
+      return { ok: true, data: {} };
+    });
 
-    expect(requestHal).toHaveBeenCalledWith(
-      "/api/v1/events/future-event/registrations/usr_1",
-      expect.objectContaining({ method: "DELETE" }),
-    );
+    render(<AccountPage />);
+
+    expect(await screen.findByText("Your operator cockpit.")).toBeInTheDocument();
   });
 });

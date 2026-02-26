@@ -1,7 +1,9 @@
 import { getSessionUserFromRequest } from "../../../../../lib/api/auth";
 import { listRegistrationsForUser } from "../../../../../lib/api/registrations";
 import { listMyEngagementTimeline, listAllMyFollowUpActions } from "../../../../../lib/api/engagements";
-import { aggregateFeed, AggregateFeedOptions } from "../../../../../lib/api/feed";
+import { aggregateFeed, AggregateFeedOptions, type FeedItem } from "../../../../../lib/api/feed";
+import { listFeedEventsForUser } from "../../../../../lib/api/feed-events";
+import { getStripeConnectAccountForUser } from "../../../../../lib/api/stripe-connect";
 import { hal, problem } from "../../../../../lib/api/response";
 import { withRequestLogging } from "../../../../../lib/api/request-logging";
 
@@ -36,9 +38,25 @@ async function _GET(request: Request) {
     const registrations = listRegistrationsForUser(user.id);
     const timelineItems = listMyEngagementTimeline(user.id);
     const followUpActions = listAllMyFollowUpActions(user.id);
+    const feedEvents = listFeedEventsForUser(user.id);
+
+    let payoutActionItem: FeedItem | null = null;
+    if (user.roles.includes("AFFILIATE")) {
+      const stripeAccount = getStripeConnectAccountForUser(user.id);
+      if (!stripeAccount || !stripeAccount.payouts_enabled) {
+        payoutActionItem = {
+          id: "payout-activation-required",
+          type: "FollowUpAction",
+          timestamp: new Date().toISOString(),
+          title: "Activate your payout account.",
+          description: "Set up payouts to receive commissions when deals close.",
+          actionUrl: "/account",
+        };
+      }
+    }
 
     const allFeedItems = aggregateFeed(
-      { registrations, timelineItems, followUpActions },
+      { registrations, timelineItems, followUpActions, feedEvents, payoutActionItem },
       { type }
     );
 

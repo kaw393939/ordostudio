@@ -90,11 +90,29 @@ export function createStripeWebhookHandler(
 
 /* ── handler registry ──────────────────────────────── */
 
+/* ── conversation.sweep ────────────────────────────── */
+
+/**
+ * Sweeps ACTIVE conversations that have been idle past the abandonment
+ * threshold. No dependencies — reads/writes its own DB connection.
+ */
+export function createConversationSweepHandler(
+  sweepFn: (requestId?: string) => { swept: number; contactsCreated: number },
+): JobHandler {
+  return async (job: JobPayload) => {
+    const requestId = typeof job.data.requestId === "string" ? job.data.requestId : undefined;
+    const logger = getLogger().child({ jobType: "conversation.sweep" });
+    const result = sweepFn(requestId);
+    logger.info(result, "conversation sweep complete");
+  };
+}
+
 export interface HandlerDependencies {
   emailPort: TransactionalEmailPort;
   newsletterDispatchFn: () => Promise<{ dispatched: number }>;
   discordSyncFn: (userId: string, entitlementIds: string[]) => Promise<void>;
   stripeWebhookFn: (payload: string, signature: string, requestId: string) => Promise<unknown>;
+  conversationSweepFn: (requestId?: string) => { swept: number; contactsCreated: number };
 }
 
 /**
@@ -106,5 +124,6 @@ export function buildHandlerMap(deps: HandlerDependencies): Map<string, JobHandl
   handlers.set("newsletter.send", createNewsletterSendHandler(deps.newsletterDispatchFn));
   handlers.set("discord.sync", createDiscordSyncHandler(deps.discordSyncFn));
   handlers.set("stripe.webhook.process", createStripeWebhookHandler(deps.stripeWebhookFn));
+  handlers.set("conversation.sweep", createConversationSweepHandler(deps.conversationSweepFn));
   return handlers;
 }

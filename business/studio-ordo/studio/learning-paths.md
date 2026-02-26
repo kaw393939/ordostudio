@@ -16,7 +16,7 @@ Each level maps to two Human Edge capabilities. Progression requires completing 
 
 ### Gate Projects
 1. **Professional Portfolio Site** — Build a portfolio from scratch using HTML, CSS, and JavaScript. No templates, no frameworks. Type everything manually.
-2. **Production Calculator with CI/CD** — Build a calculator application with 100% test coverage, automated linting, type checking, security scanning, and a CI/CD pipeline that enforces all quality gates.
+2. **Anatomy & Physics** — A cross-disciplinary exploration. You will model a biological system using physics engines or mathematical proofs. The point is to bridge two distinct fields and prove you can synthesize knowledge across boundaries.
 
 ### Required Artifacts
 - Context Pack v1 (basic: project brief, success criteria, prior context)
@@ -51,7 +51,7 @@ Calculator: ~50% human / 50% AI (tooling is curriculum — AI helps with boilerp
 
 ### Gate Projects
 3. **Design Curator Cards** — Produce 3 museum-quality content cards using a complete AI workflow: CURATOR_NOTES, AGENTS.md, PROMPT_LOG, CLAIMS.md. The autodidactic research loop: Orient → Map → Vocabulary → Evidence → Synthesize.
-4. **Feature Build on Existing System** — Build a significant feature for an existing production codebase. Must include failure mode analysis, incident response runbook, and containerized deployment with monitoring.
+4. **Humanities & Computation** — Merge computational analysis with a humanities discipline (literature, history, philosophy). Build a tool that analyzes texts, maps historical events, or models philosophical arguments.
 
 ### Required Artifacts
 - Context Pack v2 (adds architecture patterns, testing frameworks, CI/CD requirements, security posture)
