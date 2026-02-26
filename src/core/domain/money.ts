@@ -48,6 +48,19 @@ export class Money {
   subtract(other: Money): Money {
     assertSameCurrency(this, other);
     const result = this.amountCents - other.amountCents;
+    if (result < 0) {
+      throw new InvalidInputError("money_underflow");
+    }
+    return new Money(result, this.currency);
+  }
+
+  /**
+   * Subtracts, clamping to zero instead of throwing on underflow.
+   * Use only where underflow is intentional (e.g. display balance).
+   */
+  subtractSaturating(other: Money): Money {
+    assertSameCurrency(this, other);
+    const result = this.amountCents - other.amountCents;
     return new Money(result < 0 ? 0 : result, this.currency);
   }
 

@@ -1556,6 +1556,16 @@ DROP TABLE referral_conversions;
 ALTER TABLE referral_conversions_v2 RENAME TO referral_conversions;
 `,
   },
+  {
+    name: "042_ledger_unique_deal_entry_type",
+    sql: `
+-- Prevent duplicate ledger entries for the same (deal, entry_type) pair.
+-- Guards against TOCTOU races on concurrent webhook delivery.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ledger_deal_entry_type
+  ON ledger_entries(deal_id, entry_type)
+  WHERE deal_id IS NOT NULL;
+`,
+  },
 ];
 
 const ensureMetaTable = (db: Database.Database): void => {

@@ -72,14 +72,6 @@ WHERE d.id = ?
     return;
   }
 
-  const existing = db
-    .prepare("SELECT COUNT(1) as count FROM ledger_entries WHERE deal_id = ?")
-    .get(input.dealId) as { count: number };
-
-  if (existing.count > 0) {
-    return;
-  }
-
   if (!deal.price_cents || deal.price_cents <= 0) {
     return;
   }
@@ -134,41 +126,51 @@ INSERT INTO ledger_entries (
     );
   };
 
-  insert({
-    entryType: "PROVIDER_PAYOUT",
-    beneficiaryUserId: deal.provider_user_id,
-    amount: providerPayout,
-    metadata: { basis: "gross", rate: PROVIDER_PAYOUT_RATE },
-  });
+  try {
+    db.transaction(() => {
+      insert({
+        entryType: "PROVIDER_PAYOUT",
+        beneficiaryUserId: deal.provider_user_id,
+        amount: providerPayout,
+        metadata: { basis: "gross", rate: PROVIDER_PAYOUT_RATE },
+      });
 
-  insert({
-    entryType: "REFERRER_COMMISSION",
-    beneficiaryUserId: deal.referrer_user_id,
-    amount: referrerCommission,
-    metadata: { basis: "gross", rate: REFERRER_COMMISSION_RATE },
-  });
+      insert({
+        entryType: "REFERRER_COMMISSION",
+        beneficiaryUserId: deal.referrer_user_id,
+        amount: referrerCommission,
+        metadata: { basis: "gross", rate: REFERRER_COMMISSION_RATE },
+      });
 
-  insert({
-    entryType: "PLATFORM_REVENUE",
-    beneficiaryUserId: null,
-    amount: platformRevenue,
-    metadata: { basis: "gross", remainder: true },
-  });
+      insert({
+        entryType: "PLATFORM_REVENUE",
+        beneficiaryUserId: null,
+        amount: platformRevenue,
+        metadata: { basis: "gross", remainder: true },
+      });
 
-  appendAuditLog(db, {
-    actorType: "SERVICE",
-    actorId: null,
-    action: "ledger.entries.earned",
-    targetType: "ledger",
-    requestId: input.actorRequestId,
-    metadata: {
-      dealId: input.dealId,
-      gross: gross.amountCents,
-      providerPayout: providerPayout.amountCents,
-      referrerCommission: referrerCommission.amountCents,
-      platformRevenue: platformRevenue.amountCents,
-    },
-  });
+      appendAuditLog(db, {
+        actorType: "SERVICE",
+        actorId: null,
+        action: "ledger.entries.earned",
+        targetType: "ledger",
+        requestId: input.actorRequestId,
+        metadata: {
+          dealId: input.dealId,
+          gross: gross.amountCents,
+          providerPayout: providerPayout.amountCents,
+          referrerCommission: referrerCommission.amountCents,
+          platformRevenue: platformRevenue.amountCents,
+        },
+      });
+    })();
+  } catch (err: unknown) {
+    // UNIQUE constraint on (deal_id, entry_type) — already created by a concurrent request; idempotent.
+    if (err instanceof Error && err.message.includes("UNIQUE constraint failed")) {
+      return;
+    }
+    throw err;
+  }
 };
 
 export const voidLedgerForRefundedDeal = (db: ReturnType<typeof openCliDb>, input: {

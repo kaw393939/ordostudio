@@ -56,16 +56,26 @@ describe("Money — arithmetic", () => {
     );
   });
 
-  it("subtracts (clamping to zero)", () => {
+  it("subtracts two same-currency amounts", () => {
     const a = Money.cents(1000, "USD");
     const b = Money.cents(300, "USD");
     expect(a.subtract(b).amountCents).toBe(700);
   });
 
-  it("subtract clamps to zero when result would be negative", () => {
+  it("subtract throws on underflow", () => {
     const a = Money.cents(100, "USD");
     const b = Money.cents(500, "USD");
-    expect(a.subtract(b).amountCents).toBe(0);
+    expect(() => a.subtract(b)).toThrow("money_underflow");
+  });
+
+  it("subtractSaturating clamps to zero instead of throwing", () => {
+    const a = Money.cents(100, "USD");
+    const b = Money.cents(500, "USD");
+    expect(a.subtractSaturating(b).amountCents).toBe(0);
+  });
+
+  it("subtractSaturating does normal subtraction when no underflow", () => {
+    expect(Money.cents(1000, "USD").subtractSaturating(Money.cents(300, "USD")).amountCents).toBe(700);
   });
 
   it("multiplies by a rate (floors)", () => {
