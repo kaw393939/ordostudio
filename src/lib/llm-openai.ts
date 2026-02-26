@@ -65,6 +65,10 @@ export interface OAIAgentLoopStreamResult {
 // Streaming agent loop
 // ---------------------------------------------------------------------------
 
+// GPT-4o-mini output cap: 4 096 tokens. Intentionally higher than the Claude cap
+// (2 048) because GPT-4o-mini tends toward more verbose tool-use responses and
+// the model's default max is 16 384. Align with the Claude cap if response-length
+// parity across providers is required.
 const MAX_AGENT_TOKENS = 4096;
 
 /**
@@ -125,7 +129,11 @@ export async function runOpenAIAgentLoopStream(
       }
     }
 
-    // Get the fully accumulated final message (tool calls included)
+    // stream.finalMessage() is safe here even after the for-await loop exhausts
+    // the async iterator. The OpenAI SDK's Stream wrapper accumulates all delta
+    // chunks into an internal snapshot and resolves finalMessage() from that
+    // state — it does NOT attempt to re-read the closed network connection.
+    // Ref: openai-node StreamingChatCompletionRunner._messageSnapshot accumulation.
     const final = await stream.finalMessage();
     const choice = final.choices[0];
     const assistantMessage = choice.message;

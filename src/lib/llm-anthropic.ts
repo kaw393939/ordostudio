@@ -28,6 +28,9 @@ import { extractCapturedValues } from "./api/agent-capture";
 
 export const DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-6";
 const MAX_TRIAGE_TOKENS = 512;
+// Claude sonnet output cap: 2 048 tokens is sufficient for structured intake
+// conversations and keeps per-turn latency predictable. Claude's default max
+// output is 8 192 tokens. See llm-openai.ts for the asymmetric OpenAI value.
 const MAX_AGENT_TOKENS = 2048;
 
 // ---------------------------------------------------------------------------
