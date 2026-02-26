@@ -5,7 +5,7 @@
  * (intake_request_id, booking_id) and writes them into `capturedValues`.
  *
  * Previously this block was copy-pasted in three agent loop functions:
- *   - runClaudeAgentLoop (llm-anthropic.ts)
+ *   - runClaudeAgentLoop (llm-anthropic.ts) — used by evals/runner.ts
  *   - runClaudeAgentLoopStream (llm-anthropic.ts)
  *   - runOpenAIAgentLoopStream (llm-openai.ts)
  *

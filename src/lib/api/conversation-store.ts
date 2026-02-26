@@ -6,8 +6,11 @@
  */
 
 import { randomUUID } from "crypto";
+import type { NextRequest } from "next/server";
 import { openCliDb } from "@/platform/runtime";
 import { AGENT_OPENING_MESSAGE } from "@/lib/api/agent-system-prompt";
+import { parseCookieHeader } from "@/lib/api/referrals";
+import { getSessionUserFromRequest } from "@/lib/api/auth";
 
 type Db = ReturnType<typeof openCliDb>;
 
@@ -164,4 +167,66 @@ export function persistAssistantMessage(
   };
   messages.push(assistantMsg);
   saveConversation(db, conversation.id, messages, intakeRequestId ?? undefined);
+}
+
+// ---------------------------------------------------------------------------
+// Conversation context — R-13 (moved from route.ts: data-access belongs here)
+// ---------------------------------------------------------------------------
+
+export interface ConversationContext {
+  referrerName: string | null;
+  userName: string | null;
+  userEmail: string | null;
+  isAuthenticated: boolean;
+}
+
+/**
+ * Resolve conversation-scoped context by running two optional DB lookups:
+ *   1. Referral code → referrer display_name (from `so_ref` cookie)
+ *   2. Session user → user display_name (from session cookie)
+ *
+ * Both queries are non-blocking: failures are caught silently and return null.
+ * This function belongs here rather than in the route because it is entirely
+ * a data-access concern — it reads DB rows and returns a typed struct.
+ */
+export function resolveConversationContext(
+  db: Db,
+  request: NextRequest,
+): ConversationContext {
+  let referrerName: string | null = null;
+  let userName: string | null = null;
+  let userEmail: string | null = null;
+
+  const cookies = parseCookieHeader(request.headers.get("cookie"));
+  const referralCode = cookies.so_ref;
+  if (referralCode && referralCode.trim().length > 0) {
+    try {
+      const row = db
+        .prepare(
+          `SELECT u.display_name
+           FROM referral_codes rc
+           JOIN users u ON u.id = rc.user_id
+           WHERE rc.code = ?`,
+        )
+        .get(referralCode.trim().toUpperCase()) as { display_name: string | null } | undefined;
+      referrerName = row?.display_name ?? null;
+    } catch {
+      // Non-blocking — missing referrer context is fine.
+    }
+  }
+
+  const sessionUser = getSessionUserFromRequest(request);
+  if (sessionUser) {
+    userEmail = sessionUser.email;
+    try {
+      const row = db
+        .prepare("SELECT display_name FROM users WHERE id = ?")
+        .get(sessionUser.id) as { display_name: string | null } | undefined;
+      userName = row?.display_name ?? null;
+    } catch {
+      // Non-blocking.
+    }
+  }
+
+  return { referrerName, userName, userEmail, isAuthenticated: sessionUser !== null };
 }

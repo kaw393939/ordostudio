@@ -11,7 +11,6 @@
 
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import type OpenAI from "openai";
 import { searchContent } from "@/lib/api/content-search";
 import { getSiteSettingStandalone } from "@/lib/api/site-settings";
 import { createIntakeRequest } from "@/lib/api/intake";
@@ -364,20 +363,6 @@ const TOOL_REGISTRY: ToolRegistry = {
 export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = Object.values(
   TOOL_REGISTRY,
 ).map((entry) => entry.definition);
-
-/**
- * Tool definitions in OpenAI `ChatCompletionTool` format — single source of truth.
- * Add a tool to `TOOL_REGISTRY` once; available to both Claude and OpenAI paths.
- */
-export const AGENT_TOOL_DEFINITIONS_OPENAI: OpenAI.Chat.ChatCompletionTool[] =
-  AGENT_TOOL_DEFINITIONS.map((def) => ({
-    type: "function" as const,
-    function: {
-      name: def.function.name,
-      description: def.function.description,
-      parameters: def.function.parameters,
-    },
-  }));
 
 /**
  * Execute a tool by name, validating args with Zod before calling the executor.

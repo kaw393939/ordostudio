@@ -19,12 +19,12 @@ import { resolveConfig } from "@/platform/config";
 import { AGENT_TOOL_DEFINITIONS, executeAgentTool } from "@/lib/api/agent-tools";
 import { runClaudeAgentLoopStream } from "@/lib/llm-anthropic";
 import { AGENT_SYSTEM_PROMPT as BASE_SYSTEM_PROMPT } from "@/lib/api/agent-system-prompt";
-import { parseCookieHeader } from "@/lib/api/referrals";
-import { getSessionUserFromRequest } from "@/lib/api/auth";
 import { parseAndValidateChatBody } from "@/lib/api/chat-body-parser";
 import {
   loadOrCreateConversation,
   persistAssistantMessage,
+  resolveConversationContext,
+  type ConversationContext,
   type ConversationMessage,
   type ConversationRow,
 } from "@/lib/api/conversation-store";
@@ -40,57 +40,8 @@ const MAX_TURNS = 20;
 const MAX_TOOL_ROUNDS = 4;
 
 // ---------------------------------------------------------------------------
-// Conversation context resolution
+// System prompt builder (pure) — uses ConversationContext from conversation-store
 // ---------------------------------------------------------------------------
-
-interface ConversationContext {
-  referrerName: string | null;
-  userName: string | null;
-  userEmail: string | null;
-  isAuthenticated: boolean;
-}
-
-function resolveConversationContext(
-  db: ReturnType<typeof openCliDb>,
-  request: NextRequest,
-): ConversationContext {
-  let referrerName: string | null = null;
-  let userName: string | null = null;
-  let userEmail: string | null = null;
-
-  const cookies = parseCookieHeader(request.headers.get("cookie"));
-  const referralCode = cookies.so_ref;
-  if (referralCode && referralCode.trim().length > 0) {
-    try {
-      const row = db
-        .prepare(
-          `SELECT u.display_name
-           FROM referral_codes rc
-           JOIN users u ON u.id = rc.user_id
-           WHERE rc.code = ?`,
-        )
-        .get(referralCode.trim().toUpperCase()) as { display_name: string | null } | undefined;
-      referrerName = row?.display_name ?? null;
-    } catch {
-      // Non-blocking — missing referrer context is fine.
-    }
-  }
-
-  const sessionUser = getSessionUserFromRequest(request);
-  if (sessionUser) {
-    userEmail = sessionUser.email;
-    try {
-      const row = db
-        .prepare("SELECT display_name FROM users WHERE id = ?")
-        .get(sessionUser.id) as { display_name: string | null } | undefined;
-      userName = row?.display_name ?? null;
-    } catch {
-      // Non-blocking.
-    }
-  }
-
-  return { referrerName, userName, userEmail, isAuthenticated: sessionUser !== null };
-}
 
 function buildSystemPrompt(ctx: ConversationContext): string {
   const lines: string[] = [];

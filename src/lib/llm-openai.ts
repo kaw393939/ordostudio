@@ -49,6 +49,11 @@ export interface OAIAgentLoopOptions {
   executeToolFn: (name: string, args: unknown) => Promise<unknown>;
   maxToolRounds?: number;
   callbacks: OAIStreamCallbacks;
+  /**
+   * Optional: inject an OpenAI client for testing.
+   * Falls back to the module-level singleton from getOpenAIClient().
+   */
+  client?: OpenAI;
 }
 
 export interface OAIAgentLoopStreamResult {
@@ -84,18 +89,12 @@ export async function runOpenAIAgentLoopStream(
     callbacks,
   } = options;
 
-  const client = getOpenAIClient();
+  const client = options.client ?? getOpenAIClient();
   const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 
-  // OpenAI format — same shape as AgentToolDefinition (structurally compatible)
-  const oaiTools: OpenAI.Chat.ChatCompletionTool[] = tools.map((def) => ({
-    type: "function" as const,
-    function: {
-      name: def.function.name,
-      description: def.function.description,
-      parameters: def.function.parameters,
-    },
-  }));
+  // AgentToolDefinition is structurally identical to ChatCompletionTool — direct cast is safe.
+  // Both shapes are: { type: "function"; function: { name, description, parameters } }
+  const oaiTools = tools as unknown as OpenAI.Chat.ChatCompletionTool[];
 
   const history: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },

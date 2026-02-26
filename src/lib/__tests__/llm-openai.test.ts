@@ -1,45 +1,20 @@
 /**
- * Tests for R-10: runOpenAIAgentLoopStream in llm-openai.ts
+ * Tests for runOpenAIAgentLoopStream in llm-openai.ts
  *
- * Uses a class-based OpenAI mock (arrow functions can\'t be used as constructors).
- * The class field initializer closes over mockStream at instance-creation time,
- * so vi.fn() is available even though vi.mock factories are hoisted.
+ * R-13: Refactored from global vi.mock("openai") to per-test client injection
+ * via the `client` option added to OAIAgentLoopOptions.
+ *
+ * No module-level constructor mocking needed — tests inject a plain mock object
+ * directly, which is both simpler and more targeted.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-
-// ---------------------------------------------------------------------------
-// Module-level mock stream — captured by class field initializer at new() time
-// ---------------------------------------------------------------------------
-
-const mockStream = vi.fn();
-
-vi.mock("openai", () => {
-  // Class field: `chat` is initialized each time new OpenAI() is called,
-  // at which point mockStream is already a vi.fn().
-  return {
-    default: class {
-      chat = {
-        completions: {
-          stream: mockStream,
-        },
-      };
-    },
-  };
-});
-
-// Set env before first getOpenAIClient() call (happens inside tests, not at import)
-process.env.OPENAI_API_KEY = "test-key-for-unit-tests";
-
-// ---------------------------------------------------------------------------
-// Import module under test after mock registration
-// ---------------------------------------------------------------------------
-
-import { runOpenAIAgentLoopStream, getOpenAIClient } from "../llm-openai";
+import { runOpenAIAgentLoopStream } from "../llm-openai";
 import type { OAIAgentLoopOptions } from "../llm-openai";
+import type OpenAI from "openai";
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Mock stream factory
 // ---------------------------------------------------------------------------
 
 function makeMockStream(
@@ -78,6 +53,13 @@ function makeMockStream(
   };
 }
 
+/** Build a minimal injectable mock OpenAI client. */
+function makeMockClient(streamFn: ReturnType<typeof vi.fn>): OpenAI {
+  return {
+    chat: { completions: { stream: streamFn } },
+  } as unknown as OpenAI;
+}
+
 function makeBaseOptions(overrides: Partial<OAIAgentLoopOptions> = {}): OAIAgentLoopOptions {
   return {
     systemPrompt: "You are a helpful assistant.",
@@ -97,8 +79,12 @@ function makeBaseOptions(overrides: Partial<OAIAgentLoopOptions> = {}): OAIAgent
 // ---------------------------------------------------------------------------
 
 describe("runOpenAIAgentLoopStream", () => {
+  let mockStream: ReturnType<typeof vi.fn>;
+  let mockClient: OpenAI;
+
   beforeEach(() => {
-    mockStream.mockReset();
+    mockStream = vi.fn();
+    mockClient = makeMockClient(mockStream);
   });
 
   it("fires onDelta for each text chunk from the stream", async () => {
@@ -106,7 +92,9 @@ describe("runOpenAIAgentLoopStream", () => {
     mockStream.mockReturnValueOnce(makeMockStream(textChunks, "stop"));
 
     const onDelta = vi.fn();
-    await runOpenAIAgentLoopStream(makeBaseOptions({ callbacks: { onDelta } }));
+    await runOpenAIAgentLoopStream(
+      makeBaseOptions({ client: mockClient, callbacks: { onDelta } }),
+    );
 
     expect(onDelta).toHaveBeenCalledTimes(3);
     expect(onDelta).toHaveBeenNthCalledWith(1, "Hello");
@@ -117,7 +105,7 @@ describe("runOpenAIAgentLoopStream", () => {
   it("returns empty capturedValues and toolEvents when no tools are called", async () => {
     mockStream.mockReturnValueOnce(makeMockStream(["Ok"], "stop"));
 
-    const result = await runOpenAIAgentLoopStream(makeBaseOptions());
+    const result = await runOpenAIAgentLoopStream(makeBaseOptions({ client: mockClient }));
     expect(result.capturedValues).toEqual({});
     expect(result.toolEvents).toEqual([]);
   });
@@ -136,7 +124,11 @@ describe("runOpenAIAgentLoopStream", () => {
     const onDelta = vi.fn();
 
     await runOpenAIAgentLoopStream(
-      makeBaseOptions({ executeToolFn, callbacks: { onDelta, onToolCall, onToolResult } }),
+      makeBaseOptions({
+        client: mockClient,
+        executeToolFn,
+        callbacks: { onDelta, onToolCall, onToolResult },
+      }),
     );
 
     expect(onToolCall).toHaveBeenCalledWith("content_search", { query: "maestro" });
@@ -163,7 +155,9 @@ describe("runOpenAIAgentLoopStream", () => {
       status: "PENDING",
     });
 
-    const result = await runOpenAIAgentLoopStream(makeBaseOptions({ executeToolFn }));
+    const result = await runOpenAIAgentLoopStream(
+      makeBaseOptions({ client: mockClient, executeToolFn }),
+    );
     expect(result.capturedValues.intake_request_id).toBe("intake-abc-123");
   });
 
@@ -184,7 +178,9 @@ describe("runOpenAIAgentLoopStream", () => {
       status: "PENDING",
     });
 
-    const result = await runOpenAIAgentLoopStream(makeBaseOptions({ executeToolFn }));
+    const result = await runOpenAIAgentLoopStream(
+      makeBaseOptions({ client: mockClient, executeToolFn }),
+    );
     expect(result.capturedValues.booking_id).toBe("booking-xyz");
   });
 
@@ -197,7 +193,7 @@ describe("runOpenAIAgentLoopStream", () => {
     mockStream.mockReturnValueOnce(makeMockStream(["Result."], "stop"));
 
     const executeToolFn = vi.fn().mockResolvedValue({});
-    await runOpenAIAgentLoopStream(makeBaseOptions({ executeToolFn }));
+    await runOpenAIAgentLoopStream(makeBaseOptions({ client: mockClient, executeToolFn }));
 
     expect(executeToolFn).toHaveBeenCalledWith("content_search", {});
   });
@@ -212,7 +208,9 @@ describe("runOpenAIAgentLoopStream", () => {
     }
 
     const executeToolFn = vi.fn().mockResolvedValue({ results: [] });
-    await runOpenAIAgentLoopStream(makeBaseOptions({ executeToolFn, maxToolRounds: 2 }));
+    await runOpenAIAgentLoopStream(
+      makeBaseOptions({ client: mockClient, executeToolFn, maxToolRounds: 2 }),
+    );
 
     expect(executeToolFn).toHaveBeenCalledTimes(2);
     expect(mockStream).toHaveBeenCalledTimes(2);
@@ -230,7 +228,9 @@ describe("runOpenAIAgentLoopStream", () => {
       .fn()
       .mockResolvedValue({ key: "contact.email", value: "hi@studio.com" });
 
-    const result = await runOpenAIAgentLoopStream(makeBaseOptions({ executeToolFn }));
+    const result = await runOpenAIAgentLoopStream(
+      makeBaseOptions({ client: mockClient, executeToolFn }),
+    );
 
     expect(result.toolEvents).toHaveLength(2);
     expect(result.toolEvents[0]).toMatchObject({ type: "tool_call", name: "get_site_setting" });
@@ -239,13 +239,22 @@ describe("runOpenAIAgentLoopStream", () => {
 });
 
 // ---------------------------------------------------------------------------
-// getOpenAIClient singleton
+// getOpenAIClient and client injection
 // ---------------------------------------------------------------------------
 
-describe("getOpenAIClient", () => {
-  it("returns the same instance on repeated calls (singleton pattern)", () => {
-    const c1 = getOpenAIClient();
-    const c2 = getOpenAIClient();
-    expect(c1).toBe(c2);
+describe("client injection", () => {
+  it("uses the injected client instead of the module singleton", async () => {
+    const injectedStream = vi.fn();
+    const injectedClient = makeMockClient(injectedStream);
+    injectedStream.mockReturnValueOnce(makeMockStream(["injected"], "stop"));
+
+    const onDelta = vi.fn();
+    await runOpenAIAgentLoopStream(
+      makeBaseOptions({ client: injectedClient, callbacks: { onDelta } }),
+    );
+
+    // The injected client's stream was used, not the module singleton
+    expect(injectedStream).toHaveBeenCalledTimes(1);
+    expect(onDelta).toHaveBeenCalledWith("injected");
   });
 });
