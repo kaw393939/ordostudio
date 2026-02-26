@@ -125,6 +125,58 @@ export type EvalScenario =
     };
 
 // ---------------------------------------------------------------------------
+// Policy eval types (PE series — no LLM, tests hard enforcement rules)
+// ---------------------------------------------------------------------------
+
+export type PolicyAction =
+  | {
+      type: "http";
+      method: string;
+      /** Full URL or path — runner will prepend baseUrl for paths */
+      url: string;
+      headers?: Record<string, string>;
+      body?: unknown;
+    }
+  | {
+      type: "db-call";
+      /** Returns a value or throws to test error enforcement */
+      fn: (db: Database.Database) => unknown;
+    }
+  | {
+      type: "tool-call";
+      toolName: string;
+      args: unknown;
+      callerId: string;
+      callerRole: string;
+    };
+
+export type PolicyAssertion =
+  | { type: "http-status"; expected: number; description?: string }
+  | {
+      type: "response-contains";
+      key: string;
+      value: unknown;
+      description?: string;
+    }
+  | { type: "db-row-exists"; sql: string; params?: unknown[]; description?: string }
+  | { type: "db-row-not-exists"; sql: string; params?: unknown[]; description?: string }
+  | { type: "throws-with-code"; code: string; description?: string }
+  | { type: "result-field"; matcher: (result: unknown) => boolean; description?: string };
+
+export interface PolicyEvalScenario {
+  id: string;
+  name: string;
+  type: "policy";
+  description: string;
+  /** Run before the scenario (insert data, etc.) */
+  preSetup?: (db: Database.Database) => void;
+  action: PolicyAction;
+  assertions: PolicyAssertion[];
+  /** Optional cleanup after the scenario */
+  teardown?: (db: Database.Database) => void;
+}
+
+// ---------------------------------------------------------------------------
 // Result types
 // ---------------------------------------------------------------------------
 

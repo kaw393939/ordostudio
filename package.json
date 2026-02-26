@@ -31,6 +31,7 @@
     "evals:membership": "node --import tsx ./src/evals/run.ts -- --type maestro",
     "evals:affiliate": "node --import tsx ./src/evals/run.ts -- --type maestro",
     "evals:intel": "node --import tsx ./src/evals/run.ts -- --type maestro",
+    "evals:policy": "node --import tsx ./src/evals/run-policy.ts",
     "index-content": "node --import tsx ./src/cli/commands/index-content.ts"
   },
   "dependencies": {

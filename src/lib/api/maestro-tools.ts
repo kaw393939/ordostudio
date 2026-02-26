@@ -1110,6 +1110,7 @@ export function executeMaestroTool(
   name: string,
   args: unknown,
   db: Db,
+  callerContext?: { callerId?: string; callerRole?: string },
 ): Record<string, unknown> {
   try {
     switch (name) {
@@ -1333,6 +1334,10 @@ WHERE rr.id = ?
         }
         if (req.status !== "PENDING") {
           return { error: `Role request is already ${req.status}` };
+        }
+        // Policy guard: a user may not approve their own role request
+        if (callerContext?.callerId && callerContext.callerId === req.user_id) {
+          return { error: "CANNOT_APPROVE_OWN_REQUEST" };
         }
 
         db.transaction(() => {
