@@ -11,6 +11,7 @@
 import OpenAI from "openai";
 import type { AgentToolDefinition } from "@/lib/api/agent-tools";
 import type { ToolEvent } from "@/lib/llm-anthropic";
+import { extractCapturedValues } from "@/lib/api/agent-capture";
 
 // ---------------------------------------------------------------------------
 // Module-level singleton — mirrors getAnthropicClient() pattern from R-08
@@ -171,27 +172,7 @@ export async function runOpenAIAgentLoopStream(
       toolEvents.push({ type: "tool_result", name: tc.function.name, result: toolResult });
       callbacks.onToolResult?.(tc.function.name, toolResult);
 
-      // Capture interesting values from results
-      if (
-        tc.function.name === "submit_intake" &&
-        toolResult &&
-        typeof toolResult === "object" &&
-        "intake_request_id" in (toolResult as Record<string, unknown>)
-      ) {
-        capturedValues.intake_request_id = (
-          toolResult as Record<string, unknown>
-        ).intake_request_id;
-      }
-      if (
-        tc.function.name === "create_booking" &&
-        toolResult &&
-        typeof toolResult === "object" &&
-        "booking_id" in (toolResult as Record<string, unknown>)
-      ) {
-        capturedValues.booking_id = (
-          toolResult as Record<string, unknown>
-        ).booking_id;
-      }
+      extractCapturedValues(tc.function.name, toolResult, capturedValues);
 
       // Append tool result to history for next round
       history.push({

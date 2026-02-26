@@ -51,6 +51,20 @@ type ToolName =
   | "get_available_slots"
   | "create_booking";
 
+/**
+ * Exported canonical tool name constants.
+ * Use these instead of raw string literals to keep references in sync
+ * with the registry when tools are renamed.
+ * The `satisfies` constraint ensures every value stays within ToolName.
+ */
+export const TOOL_NAMES = {
+  CONTENT_SEARCH:       "content_search",
+  GET_SITE_SETTING:     "get_site_setting",
+  SUBMIT_INTAKE:        "submit_intake",
+  GET_AVAILABLE_SLOTS:  "get_available_slots",
+  CREATE_BOOKING:       "create_booking",
+} as const satisfies Record<string, ToolName>;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyToolEntry = ToolEntry<any>;
 

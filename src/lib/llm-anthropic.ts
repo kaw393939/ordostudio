@@ -20,6 +20,7 @@ import {
   isValidCategory,
 } from "./triage";
 import type { AgentToolDefinition } from "./api/agent-tools";
+import { extractCapturedValues } from "./api/agent-capture";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -268,27 +269,7 @@ export async function runClaudeAgentLoop(
 
       toolEvents.push({ type: "tool_result", name: toolUse.name, result: toolResult });
 
-      // Capture interesting values from tool results
-      if (
-        toolUse.name === "submit_intake" &&
-        toolResult &&
-        typeof toolResult === "object" &&
-        "intake_request_id" in (toolResult as Record<string, unknown>)
-      ) {
-        capturedValues.intake_request_id = (
-          toolResult as Record<string, unknown>
-        ).intake_request_id;
-      }
-      if (
-        toolUse.name === "create_booking" &&
-        toolResult &&
-        typeof toolResult === "object" &&
-        "booking_id" in (toolResult as Record<string, unknown>)
-      ) {
-        capturedValues.booking_id = (
-          toolResult as Record<string, unknown>
-        ).booking_id;
-      }
+      extractCapturedValues(toolUse.name, toolResult, capturedValues);
 
       toolResultContents.push({
         type: "tool_result",
@@ -433,27 +414,7 @@ export async function runClaudeAgentLoopStream(
       toolEvents.push({ type: "tool_result", name: toolUse.name, result: toolResult });
       callbacks.onToolResult?.(toolUse.name, toolResult);
 
-      // Capture interesting values
-      if (
-        toolUse.name === "submit_intake" &&
-        toolResult &&
-        typeof toolResult === "object" &&
-        "intake_request_id" in (toolResult as Record<string, unknown>)
-      ) {
-        capturedValues.intake_request_id = (
-          toolResult as Record<string, unknown>
-        ).intake_request_id;
-      }
-      if (
-        toolUse.name === "create_booking" &&
-        toolResult &&
-        typeof toolResult === "object" &&
-        "booking_id" in (toolResult as Record<string, unknown>)
-      ) {
-        capturedValues.booking_id = (
-          toolResult as Record<string, unknown>
-        ).booking_id;
-      }
+      extractCapturedValues(toolUse.name, toolResult, capturedValues);
 
       toolResultContents.push({
         type: "tool_result",
