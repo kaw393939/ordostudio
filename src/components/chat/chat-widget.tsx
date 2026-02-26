@@ -17,22 +17,19 @@
  */
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AGENT_OPENING_MESSAGE } from "@/lib/api/agent-system-prompt";
+import {
+  type FileAttachment as Attachment,
+  useFileAttachments,
+} from "./use-file-attachments";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-interface Attachment {
-  id: string;
-  type: "image" | "document";
-  mediaType: string;
-  name: string;
-  data: string;      // base64 (no data-url prefix)
-  preview?: string;  // object URL for images
-}
+// Attachment type is imported from ./use-file-attachments
 
 interface Message {
   id: string;
@@ -92,42 +89,7 @@ function setConversationId(id: string): void {
   localStorage.setItem("so_conversation_id", id);
 }
 
-// ---------------------------------------------------------------------------
-// File helpers
-// ---------------------------------------------------------------------------
-
-async function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      resolve(result.split(",")[1] ?? "");
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-async function filesToAttachments(files: File[]): Promise<Attachment[]> {
-  const results: Attachment[] = [];
-  for (const file of files) {
-    const isImage = file.type.startsWith("image/");
-    const isPdf = file.type === "application/pdf";
-    if (!isImage && !isPdf) continue;
-
-    const data = await fileToBase64(file);
-    const attachment: Attachment = {
-      id: crypto.randomUUID(),
-      type: isImage ? "image" : "document",
-      mediaType: file.type,
-      name: file.name,
-      data,
-      preview: isImage ? URL.createObjectURL(file) : undefined,
-    };
-    results.push(attachment);
-  }
-  return results;
-}
+// File helpers live in ./use-file-attachments
 
 // ---------------------------------------------------------------------------
 // Markdown link renderer
@@ -491,17 +453,25 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
     { id: crypto.randomUUID(), role: "assistant", content: AGENT_OPENING_MESSAGE },
   ]);
   const [input, setInput] = useState("");
-  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   /** Holds the id of the in-flight streaming assistant message; null when idle. */
   const streamingIdRef = useRef<string | null>(null);
+
+  // ── File attachments hook ─────────────────────────────────────────────────
+  const {
+    pendingAttachments,
+    isDragging,
+    fileInputRef,
+    removeAttachment,
+    clearAttachments,
+    revokeAttachments,
+    handlers: fileHandlers,
+  } = useFileAttachments({ containerRef: messagesRef });
 
   const hasUserMessages = useMemo(
     () => messages.some((m) => m.role === "user"),
@@ -519,72 +489,6 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
     }
   }, [isOpen, submitted]);
 
-  // Clean up object URLs on unmount
-  useEffect(() => {
-    return () => {
-      for (const a of pendingAttachments) {
-        if (a.preview) URL.revokeObjectURL(a.preview);
-      }
-    };
-  }, [pendingAttachments]);
-
-  // ── File handling ──────────────────────────────────────────────────────────
-
-  const processFiles = useCallback(async (files: FileList | File[]) => {
-    const fileArray = Array.from(files);
-    const newAttachments = await filesToAttachments(fileArray);
-    if (newAttachments.length > 0) {
-      setPendingAttachments((prev) => [...prev, ...newAttachments]);
-    }
-  }, []);
-
-  const handleFileInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files) void processFiles(e.target.files);
-      e.target.value = "";
-    },
-    [processFiles],
-  );
-
-  const handlePaste = useCallback(
-    (e: React.ClipboardEvent) => {
-      const imageItems = Array.from(e.clipboardData.items).filter(
-        (item) => item.kind === "file" && item.type.startsWith("image/"),
-      );
-      if (imageItems.length === 0) return;
-      e.preventDefault();
-      const files = imageItems.map((item) => item.getAsFile()).filter((f): f is File => f !== null);
-      void processFiles(files);
-    },
-    [processFiles],
-  );
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    if (!messagesRef.current?.contains(e.relatedTarget as Node)) setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setIsDragging(false);
-      if (e.dataTransfer.files.length > 0) void processFiles(e.dataTransfer.files);
-    },
-    [processFiles],
-  );
-
-  const removeAttachment = useCallback((id: string) => {
-    setPendingAttachments((prev) => {
-      const removed = prev.find((a) => a.id === id);
-      if (removed?.preview) URL.revokeObjectURL(removed.preview);
-      return prev.filter((a) => a.id !== id);
-    });
-  }, []);
-
   // ── Send ──────────────────────────────────────────────────────────────────
 
   async function sendMessage(overrideText?: string) {
@@ -593,15 +497,10 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
 
     const currentAttachments = [...pendingAttachments];
     setInput("");
-    setPendingAttachments([]);
-
-    // Revoke blob preview URLs immediately after clearing — the image data is already
-    // in currentAttachments.data (base64) so the blob: URL is no longer needed.
-    for (const a of currentAttachments) {
-      if (a.preview) {
-        URL.revokeObjectURL(a.preview);
-      }
-    }
+    // Revoke blob preview URLs — base64 data is already in currentAttachments.data,
+    // so the object URLs are no longer needed.
+    revokeAttachments(currentAttachments);
+    clearAttachments();
 
     // Optimistic UI: show sent message immediately
     const sentMessage: Message = {
@@ -708,9 +607,9 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
       <div
         ref={messagesRef}
         className="relative flex-1 overflow-y-auto px-4 py-5 flex flex-col gap-3.5 scroll-smooth min-h-0"
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+        onDragOver={fileHandlers.onDragOver}
+        onDragLeave={fileHandlers.onDragLeave}
+        onDrop={fileHandlers.onDrop}
       >
         {/* Brand watermark — always behind messages */}
         <BrandWatermark />
@@ -776,7 +675,7 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
           className="sr-only"
           tabIndex={-1}
           aria-hidden="true"
-          onChange={handleFileInputChange}
+          onChange={fileHandlers.onFileInputChange}
         />
 
         {/* Attach button */}
@@ -800,7 +699,7 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
+          onPaste={fileHandlers.onPaste}
           disabled={isStreaming || submitted}
           placeholder={
             submitted
