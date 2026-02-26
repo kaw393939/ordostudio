@@ -9,6 +9,7 @@ import { POST as postIntake } from "../api/v1/intake/route";
 
 import { AFFILIATE_COMMISSION_RATE } from "../../lib/constants/commissions";
 import { getReferralAdminReport } from "../../lib/api/referrals";
+import { ensureLedgerEarnedForDeliveredDeal } from "../../lib/api/ledger";
 
 import {
   cleanupStandardE2EFixtures,
@@ -225,5 +226,81 @@ describe("e2e commission math and attribution", () => {
       .get(fixture.userId);
     auditDb.close();
     expect(auditRow).toBeTruthy();
+  });
+
+  it("Test 7: ledger REFERRER_COMMISSION amount matches referral report commission (cross-path parity)", () => {
+    const db = new Database(fixture.dbPath);
+    const now = new Date().toISOString();
+    const dealId = randomUUID();
+    const proposalId = randomUUID();
+    const grossCents = 250000; // $2,500
+
+    // Get or create referral code for the fixture user
+    let codeId: string;
+    const existingCode = db
+      .prepare("SELECT id FROM referral_codes WHERE user_id = ?")
+      .get(fixture.userId) as { id: string } | undefined;
+    if (existingCode) {
+      codeId = existingCode.id;
+    } else {
+      codeId = randomUUID();
+      db.prepare(
+        "INSERT INTO referral_codes (id, user_id, code, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+      ).run(codeId, fixture.userId, "PARITYTEST", now, now);
+    }
+
+    // Create an accepted proposal so the referral report counts this gross amount
+    const intakeId = randomUUID();
+    db.prepare(
+      `INSERT INTO intake_requests (id, audience, contact_name, contact_email, goals, status, priority, created_at, updated_at)
+       VALUES (?, 'INDIVIDUAL', 'Parity Test', 'parity@example.com', 'Testing', 'NEW', 0, ?, ?)`,
+    ).run(intakeId, now, now);
+    db.prepare(
+      `INSERT INTO referral_conversions (id, referral_code_id, conversion_type, intake_request_id, created_at)
+       VALUES (?, ?, 'INTAKE_REQUEST', ?, ?)`,
+    ).run(randomUUID(), codeId, intakeId, now);
+    db.prepare(
+      `INSERT INTO proposals (id, intake_request_id, client_email, title, amount_cents, currency, status, created_at, updated_at)
+       VALUES (?, ?, 'parity@example.com', 'Parity Proposal', ?, 'USD', 'ACCEPTED', ?, ?)`,
+    ).run(proposalId, intakeId, grossCents, now, now);
+    db.close();
+
+    // Create an offer + deal so ensureLedgerEarnedForDeliveredDeal can run
+    const offerDb = new Database(fixture.dbPath);
+    offerDb.prepare(
+      "INSERT INTO offers (id, slug, title, summary, price_cents, currency, status, audience, delivery_mode, booking_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'USD', 'ACTIVE', 'INDIVIDUAL', 'ONLINE', 'https://example.com', ?, ?)",
+    ).run(randomUUID(), "parity-offer", "Parity Offer", "Parity offer summary", grossCents, now, now);
+    offerDb.prepare(
+      "INSERT INTO deals (id, intake_id, offer_slug, referrer_user_id, provider_user_id, status, created_at, updated_at) VALUES (?, ?, 'parity-offer', ?, NULL, 'DELIVERED', ?, ?)",
+    ).run(dealId, intakeId, fixture.userId, now, now);
+    offerDb.close();
+
+    // Run the ledger path
+    process.env.APPCTL_ENV = "local";
+    const ledgerRunDb = new Database(fixture.dbPath);
+    ensureLedgerEarnedForDeliveredDeal(ledgerRunDb as never, {
+      dealId,
+      actorRequestId: randomUUID(),
+    });
+    ledgerRunDb.close();
+
+    // Get actual ledger entry for referrer commission
+    const ledgerDb = new Database(fixture.dbPath);
+    const ledgerRow = ledgerDb
+      .prepare(
+        "SELECT amount_cents FROM ledger_entries WHERE deal_id = ? AND entry_type = 'REFERRER_COMMISSION'",
+      )
+      .get(dealId) as { amount_cents: number } | undefined;
+    ledgerDb.close();
+
+    expect(ledgerRow).toBeDefined();
+
+    // Get referral report commission for this user
+    const report = getReferralAdminReport();
+    const userRow = report.items.find((r) => r.user_id === fixture.userId);
+    expect(userRow).toBeDefined();
+
+    // Cross-path parity: ledger entry amount must equal report commission
+    expect(ledgerRow!.amount_cents).toBe(userRow!.commission_owed_cents);
   });
 });

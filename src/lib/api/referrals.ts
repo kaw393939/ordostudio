@@ -4,6 +4,7 @@ import { resolveConfig } from "@/platform/config";
 import { appendAuditLog, openCliDb } from "@/platform/runtime";
 import { writeFeedEvent } from "@/lib/api/feed-events";
 import { AFFILIATE_COMMISSION_RATE } from "@/lib/constants/commissions";
+import { Money } from "@/core/domain/money";
 
 export type ReferralCodeRecord = {
   id: string;
@@ -308,7 +309,8 @@ LEFT JOIN (
 LEFT JOIN (
   SELECT
     conv.referral_code_id as referral_code_id,
-    SUM(CASE WHEN p.status = 'ACCEPTED' THEN p.amount_cents ELSE 0 END) as gross_accepted_cents
+    SUM(CASE WHEN p.status = 'ACCEPTED' THEN p.amount_cents ELSE 0 END) as gross_accepted_cents,
+    MAX(p.currency) as currency
   FROM referral_conversions conv
   LEFT JOIN proposals p ON p.intake_request_id = conv.intake_request_id
   GROUP BY conv.referral_code_id
@@ -316,14 +318,17 @@ LEFT JOIN (
 ORDER BY conversions DESC, clicks DESC, u.email ASC
 `,
       )
-      .all() as Array<{ user_id: string; user_email: string; code: string; clicks: number; conversions: number; gross_accepted_cents: number }>;
+      .all() as Array<{ user_id: string; user_email: string; code: string; clicks: number; conversions: number; gross_accepted_cents: number; currency: string | null }>;
 
     const items: ReferralAdminRow[] = rows.map((row) => {
       const clicks = Number(row.clicks ?? 0);
       const conversions = Number(row.conversions ?? 0);
       const conversionRate = clicks === 0 ? 0 : conversions / clicks;
       const grossAccepted = Number(row.gross_accepted_cents ?? 0);
-      const commission = Math.floor(grossAccepted * AFFILIATE_COMMISSION_RATE);
+      // Use Money.multiplyRate so rounding logic is identical to the ledger path.
+      // Falls back to USD when no accepted proposal exists (grossAccepted is 0).
+      const commission = Money.cents(grossAccepted, row.currency ?? "USD")
+        .multiplyRate(AFFILIATE_COMMISSION_RATE).amountCents;
 
       return {
         user_id: row.user_id,
