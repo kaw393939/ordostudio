@@ -53,6 +53,7 @@ import { workflowScenarios } from "./scenarios/workflow";
 import { contentRetrievalScenarios } from "./scenarios/content-retrieval";
 import { maestroScenarios } from "./scenarios/maestro";
 import { journeyFScenarios } from "./scenarios/journey-f";
+import { commerceScenarios } from "./scenarios/commerce";
 import type { EvalScenario, EvalReport } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -209,6 +210,7 @@ Environment:
     ...(openaiKey ? contentRetrievalScenarios : []),
     ...maestroScenarios,
     ...journeyFScenarios,
+    ...commerceScenarios,
   ];
 
   // Apply filters

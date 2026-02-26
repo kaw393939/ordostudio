@@ -373,6 +373,108 @@ export const MAESTRO_TOOLS: AgentToolDefinition[] = [
       },
     },
   },
+
+  // ---------------------------------------------------------------------------
+  // Group F — Commerce: Deal Pipeline
+  // ---------------------------------------------------------------------------
+  {
+    type: "function",
+    function: {
+      name: "list_deals",
+      description:
+        "List deals in the pipeline. Returns intake contact info and current stage.",
+      parameters: {
+        type: "object",
+        properties: {
+          status: {
+            type: "string",
+            enum: [
+              "QUEUED",
+              "ASSIGNED",
+              "MAESTRO_APPROVED",
+              "PAID",
+              "IN_PROGRESS",
+              "DELIVERED",
+              "CLOSED",
+              "REFUNDED",
+              "all",
+            ],
+            description: "Filter by status (default: QUEUED).",
+          },
+          limit: {
+            type: "number",
+            description: "Max rows (1–100, default 20).",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_deal_detail",
+      description:
+        "Get full details for a specific deal including intake and offer info.",
+      parameters: {
+        type: "object",
+        required: ["dealId"],
+        properties: {
+          dealId: { type: "string", description: "Deal ID" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "advance_deal_stage",
+      description:
+        "Advance a deal to a new status stage. Enforces state machine rules. Always confirm with the operator before calling.",
+      parameters: {
+        type: "object",
+        required: ["dealId", "newStatus"],
+        properties: {
+          dealId: { type: "string", description: "Deal ID to advance" },
+          newStatus: {
+            type: "string",
+            enum: [
+              "ASSIGNED",
+              "MAESTRO_APPROVED",
+              "PAID",
+              "IN_PROGRESS",
+              "DELIVERED",
+              "CLOSED",
+              "REFUNDED",
+            ],
+            description: "Target status",
+          },
+          note: {
+            type: "string",
+            description: "Optional note for audit trail (max 500 chars)",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_customer_timeline",
+      description:
+        "Get a chronological history of a user's activity (feed events, role requests). Returns empty + note for unknown users.",
+      parameters: {
+        type: "object",
+        required: ["userId"],
+        properties: {
+          userId: { type: "string", description: "User ID to look up" },
+          limit: {
+            type: "number",
+            description: "Max events to return (1–50, default 20)",
+          },
+        },
+      },
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -439,6 +541,47 @@ const logCallbackOutcomeSchema = z.object({
   intakeId: z.string().min(1),
   outcome: z.enum(["converted", "no_show", "rescheduled", "declined"]),
   notes: z.string().max(1000).optional(),
+});
+
+// Commerce-Agent schemas
+const listDealsSchema = z.object({
+  status: z
+    .enum([
+      "QUEUED",
+      "ASSIGNED",
+      "MAESTRO_APPROVED",
+      "PAID",
+      "IN_PROGRESS",
+      "DELIVERED",
+      "CLOSED",
+      "REFUNDED",
+      "all",
+    ])
+    .default("QUEUED"),
+  limit: z.number().int().min(1).max(100).default(20),
+});
+
+const getDealDetailSchema = z.object({
+  dealId: z.string().min(1),
+});
+
+const advanceDealStageSchema = z.object({
+  dealId: z.string().min(1),
+  newStatus: z.enum([
+    "ASSIGNED",
+    "MAESTRO_APPROVED",
+    "PAID",
+    "IN_PROGRESS",
+    "DELIVERED",
+    "CLOSED",
+    "REFUNDED",
+  ]),
+  note: z.string().max(500).optional(),
+});
+
+const getCustomerTimelineSchema = z.object({
+  userId: z.string().min(1),
+  limit: z.number().int().min(1).max(50).default(20),
 });
 
 // ---------------------------------------------------------------------------
@@ -913,6 +1056,181 @@ LIMIT ?
 
         if (info.changes === 0) return { error: "NO_BOOKING_FOUND" };
         return { intakeId, outcome, loggedAt: now };
+      }
+
+      // ------------------------------------------------------------------
+      // Group F — Commerce: Deal Pipeline
+      // ------------------------------------------------------------------
+
+      case "list_deals": {
+        const { status, limit } = listDealsSchema.parse(args);
+
+        const rows = db
+          .prepare(
+            `
+SELECT d.id,
+       d.intake_id,
+       d.offer_slug,
+       d.status,
+       d.maestro_user_id,
+       d.created_at,
+       d.updated_at,
+       i.contact_name,
+       i.contact_email,
+       i.audience
+FROM deals d
+LEFT JOIN intake_requests i ON i.id = d.intake_id
+WHERE (? = 'all' OR d.status = ?)
+ORDER BY d.created_at DESC
+LIMIT ?
+`,
+          )
+          .all(status, status, limit) as Array<Record<string, unknown>>;
+
+        return { deals: rows, count: rows.length };
+      }
+
+      case "get_deal_detail": {
+        const { dealId } = getDealDetailSchema.parse(args);
+
+        const row = db
+          .prepare(
+            `
+SELECT d.id,
+       d.intake_id,
+       d.offer_slug,
+       d.status,
+       d.referrer_user_id,
+       d.provider_user_id,
+       d.maestro_user_id,
+       d.created_at,
+       d.updated_at,
+       i.contact_name,
+       i.contact_email,
+       i.audience,
+       i.goals,
+       i.status AS intake_status,
+       i.created_at AS intake_created_at,
+       o.title AS offer_title
+FROM deals d
+LEFT JOIN intake_requests i ON i.id = d.intake_id
+LEFT JOIN offers o ON o.slug = d.offer_slug
+WHERE d.id = ?
+`,
+          )
+          .get(dealId) as Record<string, unknown> | undefined;
+
+        if (!row) return { error: "DEAL_NOT_FOUND" };
+        return row;
+      }
+
+      case "advance_deal_stage": {
+        const { dealId, newStatus, note } = advanceDealStageSchema.parse(args);
+
+        const deal = db
+          .prepare("SELECT id, status, maestro_user_id FROM deals WHERE id = ?")
+          .get(dealId) as
+          | { id: string; status: string; maestro_user_id: string | null }
+          | undefined;
+
+        if (!deal) return { error: "DEAL_NOT_FOUND" };
+
+        // State machine guard — prevent skipping approval steps
+        const needsApproval = newStatus === "MAESTRO_APPROVED";
+        if (needsApproval && deal.status !== "ASSIGNED") {
+          return {
+            error: "INVALID_TRANSITION",
+            message: `Deal must be ASSIGNED before MAESTRO_APPROVED. Current: ${deal.status}`,
+          };
+        }
+        const needsMaestroApproval =
+          newStatus === "PAID" || newStatus === "IN_PROGRESS";
+        if (needsMaestroApproval && deal.status !== "MAESTRO_APPROVED") {
+          return {
+            error: "INVALID_TRANSITION",
+            message: `Deal must be MAESTRO_APPROVED before ${newStatus}. Current: ${deal.status}`,
+          };
+        }
+
+        const now = new Date().toISOString();
+        db.prepare(
+          "UPDATE deals SET status = ?, updated_at = ? WHERE id = ?",
+        ).run(newStatus, now, dealId);
+
+        // Audit log entry
+        db.prepare(
+          `INSERT INTO audit_log (id, actor_type, action, target_type, target_id, metadata, created_at, request_id)
+           VALUES (?, 'AGENT', 'deal.advance_stage', 'deal', ?, ?, ?, ?)`,
+        ).run(
+          randomUUID(),
+          dealId,
+          JSON.stringify({
+            from: deal.status,
+            to: newStatus,
+            note: note ?? null,
+          }),
+          now,
+          randomUUID(),
+        );
+
+        // Feed event to maestro user if set
+        if (deal.maestro_user_id) {
+          writeFeedEvent(db, {
+            userId: deal.maestro_user_id,
+            type: "DealAdvanced",
+            title: `Deal ${dealId} advanced to ${newStatus}`,
+            description: `Stage changed from ${deal.status} to ${newStatus}${note ? `: ${note}` : ""}`,
+          });
+        }
+
+        return {
+          dealId,
+          previousStatus: deal.status,
+          newStatus,
+          advancedAt: now,
+        };
+      }
+
+      case "get_customer_timeline": {
+        const { userId, limit } = getCustomerTimelineSchema.parse(args);
+
+        // Check if user exists
+        const user = db
+          .prepare("SELECT id FROM users WHERE id = ?")
+          .get(userId);
+        if (!user) {
+          return { events: [], count: 0, note: "No activity found" };
+        }
+
+        const rows = db
+          .prepare(
+            `
+SELECT 'feed_event' AS type,
+       f.id,
+       f.type AS subtype,
+       f.description AS description,
+       f.created_at
+FROM feed_events f
+WHERE f.user_id = ?
+UNION ALL
+SELECT 'role_request',
+       rr.id,
+       rr.status || ' ' || COALESCE(rr.requested_role_id, ''),
+       COALESCE(rr.context, ''),
+       rr.created_at
+FROM role_requests rr
+WHERE rr.user_id = ?
+ORDER BY created_at DESC
+LIMIT ?
+`,
+          )
+          .all(userId, userId, limit) as Array<Record<string, unknown>>;
+
+        return {
+          events: rows,
+          count: rows.length,
+          ...(rows.length === 0 ? { note: "No activity found" } : {}),
+        };
       }
 
       default:
