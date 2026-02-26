@@ -69,7 +69,7 @@
 | **00b** | `sprint-maestro-00b-db-gaps` | 3 DB correctness bugs (self-referral, double-booking, refund void); 3 missing roles | none | 1 | 🔴 P0 |
 | **Vec-01** ✅ | `sprint-vec-01-foundation` | sqlite-vec; `embeddings` table; content indexer; 3-tier RBAC (`PUBLIC / AUTHENTICATED / ADMIN`) | Phase 0 | 2–3 | ✅ Done |
 | **M-01/02** ✅ | `sprint-maestro-01-ops-agent` + `sprint-maestro-02-admin-chat-ui` | 10 core tools (intake queue, role requests, revenue summary, ops summary, audit); split-panel UI validates each tool. Ship together. | 00b, Vec-01 | 3–4 | ✅ Done |
-| **JF** | `sprint-journey-f-escalation` | `flag_urgent_intake`, `trigger_urgent_callback`, `log_callback_outcome`; 3 evals | M-01/02 | 1–2 | 🟠 P1 |
+| **JF** ✅ | `sprint-journey-f-escalation` | `flag_urgent_intake`, `trigger_urgent_callback`, `log_callback_outcome`; 3 evals | M-01/02 | 1–2 | ✅ Done |
 | **CA** | `sprint-commerce-agent` | Wire existing `list_deals`/`assign_deal`/`approve_deal` MCP tools to ops agent; add `get_customer_timeline`, `get_deal_detail` | M-01/02 | 1–2 | 🟠 P1 |
 | **PA** | `sprint-prospect-agent` | `subscribe_to_newsletter`, `convert_subscriber_to_lead`, `capture_content_interest` in public intake agent | Vec-01 | 2 | 🟠 P1 |
 | **EM** | `sprint-event-management` | `create_event`, `update_event`, `get_event_attendance`, `list_registered_attendees` in ops agent | M-01/02 | 2 | 🟡 P2 |
