@@ -575,6 +575,110 @@ export const MAESTRO_TOOLS: AgentToolDefinition[] = [
       },
     },
   },
+  // ---- Group H: Membership & Apprenticeship ----------------------------------
+  {
+    type: "function",
+    function: {
+      name: "apply_for_apprenticeship",
+      description:
+        "Submit an apprenticeship application for a user. Idempotent — returns the existing request ID if one is already PENDING.",
+      parameters: {
+        type: "object",
+        required: ["userId"],
+        properties: {
+          userId: { type: "string", description: "ID of the user applying" },
+          note: {
+            type: "string",
+            description: "Optional motivation note (max 500 chars)",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "view_rank_requirements",
+      description:
+        "Return the static requirements a user must meet to advance past a given rank. Pass the current role to see what comes next.",
+      parameters: {
+        type: "object",
+        properties: {
+          targetRole: {
+            type: "string",
+            enum: [
+              "SUBSCRIBER",
+              "ASSOCIATE",
+              "APPRENTICE",
+              "CERTIFIED_CONSULTANT",
+            ],
+            description:
+              "Role to view advancement requirements for (default: SUBSCRIBER)",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_assigned_tasks",
+      description:
+        "List apprentice tasks assigned to a user. Returns an empty list with a note if the task module is not active.",
+      parameters: {
+        type: "object",
+        required: ["userId"],
+        properties: {
+          userId: { type: "string", description: "User whose tasks to list" },
+          status: {
+            type: "string",
+            enum: ["all", "pending", "completed"],
+            description: "Filter by task status (default: pending)",
+          },
+          limit: {
+            type: "number",
+            description: "Max tasks to return (1–50, default 20)",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_apprentice_profile",
+      description:
+        "Get profile and progress summary for a user: current roles, gate submission count, and completed task count.",
+      parameters: {
+        type: "object",
+        required: ["userId"],
+        properties: {
+          userId: {
+            type: "string",
+            description: "ID of the user to look up",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "review_apprentice_application",
+      description:
+        "Fetch full details of a pending apprenticeship application including user email and context notes. ADMIN/STAFF only.",
+      parameters: {
+        type: "object",
+        required: ["requestId"],
+        properties: {
+          requestId: {
+            type: "string",
+            description: "ID of the role_requests row to review",
+          },
+        },
+      },
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -713,6 +817,37 @@ const getEventAttendanceSchema = z.object({
 const listRegisteredAttendeesSchema = z.object({
   eventId: z.string().min(1),
   status: z.enum(["registered", "cancelled", "all"]).default("registered"),
+});
+
+// Membership & Apprenticeship schemas (Group H)
+const applyForApprenticeshipSchema = z.object({
+  userId: z.string().min(1),
+  note: z.string().max(500).optional(),
+});
+
+const viewRankRequirementsSchema = z.object({
+  targetRole: z
+    .enum([
+      "SUBSCRIBER",
+      "ASSOCIATE",
+      "APPRENTICE",
+      "CERTIFIED_CONSULTANT",
+    ])
+    .optional(),
+});
+
+const listAssignedTasksSchema = z.object({
+  userId: z.string().min(1),
+  status: z.enum(["all", "pending", "completed"]).default("pending"),
+  limit: z.number().int().min(1).max(50).default(20),
+});
+
+const getApprenticeProfileSchema = z.object({
+  userId: z.string().min(1),
+});
+
+const reviewApprenticeApplicationSchema = z.object({
+  requestId: z.string().min(1),
 });
 
 // ---------------------------------------------------------------------------
@@ -1502,6 +1637,220 @@ ORDER BY er.id ASC
         }));
 
         return { eventId, attendees };
+      }
+
+      // ------------------------------------------------------------------
+      // Group H — Membership & Apprenticeship
+      // ------------------------------------------------------------------
+
+      case "apply_for_apprenticeship": {
+        const { userId, note } = applyForApprenticeshipSchema.parse(args);
+
+        // Idempotency: check for existing PENDING request
+        const existing = db
+          .prepare(
+            "SELECT id FROM role_requests WHERE user_id = ? AND status = 'PENDING' LIMIT 1",
+          )
+          .get(userId) as { id: string } | undefined;
+
+        if (existing) {
+          return {
+            error: "APPLICATION_ALREADY_PENDING",
+            existingRequestId: existing.id,
+          };
+        }
+
+        // Resolve APPRENTICE role ID
+        const role = db
+          .prepare("SELECT id FROM roles WHERE name = 'APPRENTICE' LIMIT 1")
+          .get() as { id: string } | undefined;
+
+        if (!role) {
+          return {
+            error: "ROLE_NOT_FOUND",
+            message: "APPRENTICE role not configured in this instance",
+          };
+        }
+
+        const now = new Date().toISOString();
+        const requestId = randomUUID();
+        db.prepare(
+          `INSERT INTO role_requests
+             (id, user_id, requested_role_id, status, context, created_at, updated_at)
+           VALUES (?, ?, ?, 'PENDING', ?, ?, ?)`,
+        ).run(
+          requestId,
+          userId,
+          role.id,
+          JSON.stringify({ note: note ?? null }),
+          now,
+          now,
+        );
+
+        return { requestId, status: "pending", message: "Application submitted" };
+      }
+
+      case "view_rank_requirements": {
+        const { targetRole } = viewRankRequirementsSchema.parse(args);
+
+        const RANK_REQUIREMENTS: Record<string, string[]> = {
+          SUBSCRIBER: [
+            "Submit an intake request",
+            "Attend one free webinar or event",
+          ],
+          ASSOCIATE: [
+            "Complete onboarding intake",
+            "Receive ASSOCIATE role assignment from Staff",
+          ],
+          APPRENTICE: [
+            "Complete 3 assigned tasks",
+            "Submit a gate submission reviewed by Admin",
+          ],
+          CERTIFIED_CONSULTANT: [
+            "Complete full apprenticeship program",
+            "Receive CERTIFIED_CONSULTANT promotion from Admin",
+          ],
+        };
+
+        const RANK_ORDER = [
+          "SUBSCRIBER",
+          "ASSOCIATE",
+          "APPRENTICE",
+          "CERTIFIED_CONSULTANT",
+        ];
+
+        const role = targetRole ?? "SUBSCRIBER";
+        const currentIdx = RANK_ORDER.indexOf(role);
+        const nextRole =
+          currentIdx >= 0 && currentIdx < RANK_ORDER.length - 1
+            ? RANK_ORDER[currentIdx + 1]
+            : null;
+
+        return {
+          currentRole: role,
+          nextRole,
+          requirementsToAdvance: nextRole ? RANK_REQUIREMENTS[role] : [],
+        };
+      }
+
+      case "list_assigned_tasks": {
+        const { userId, status, limit } = listAssignedTasksSchema.parse(args);
+
+        try {
+          const rows = db
+            .prepare(
+              `
+SELECT id, title, description, status, due_date, created_at
+FROM apprentice_tasks
+WHERE assigned_to = ?
+  AND (? = 'all' OR status = ?)
+ORDER BY created_at DESC
+LIMIT ?
+`,
+            )
+            .all(userId, status, status, limit) as Array<
+            Record<string, unknown>
+          >;
+          return { tasks: rows, count: rows.length };
+        } catch {
+          return { tasks: [], note: "task module not active" };
+        }
+      }
+
+      case "get_apprentice_profile": {
+        const { userId } = getApprenticeProfileSchema.parse(args);
+
+        const user = db
+          .prepare(
+            `
+SELECT u.id, u.created_at AS joined_at,
+       COUNT(DISTINCT ags.id) AS gate_submissions_n
+FROM users u
+LEFT JOIN apprentice_gate_submissions ags ON ags.user_id = u.id
+WHERE u.id = ?
+GROUP BY u.id
+`,
+          )
+          .get(userId) as
+          | { id: string; joined_at: string; gate_submissions_n: number }
+          | undefined;
+
+        if (!user) {
+          return { error: "USER_NOT_FOUND" };
+        }
+
+        // Fetch current roles
+        const roles = db
+          .prepare(
+            `
+SELECT r.name
+FROM user_roles ur
+JOIN roles r ON r.id = ur.role_id
+WHERE ur.user_id = ?
+`,
+          )
+          .all(userId) as Array<{ name: string }>;
+
+        // Tasks completed (graceful if apprentice_tasks absent)
+        let tasksCompleted = 0;
+        try {
+          const t = db
+            .prepare(
+              "SELECT COUNT(*) AS n FROM apprentice_tasks WHERE assigned_to = ? AND status = 'completed'",
+            )
+            .get(userId) as { n: number };
+          tasksCompleted = t.n;
+        } catch {
+          /* apprentice_tasks not yet active */
+        }
+
+        return {
+          userId: user.id,
+          joinedAt: user.joined_at,
+          roles: roles.map((r) => r.name),
+          gateSubmissionsN: user.gate_submissions_n,
+          tasksCompletedN: tasksCompleted,
+        };
+      }
+
+      case "review_apprentice_application": {
+        const { requestId } = reviewApprenticeApplicationSchema.parse(args);
+
+        const row = db
+          .prepare(
+            `
+SELECT rr.id, rr.status, rr.context, rr.created_at, rr.updated_at,
+       u.email, r.name AS requested_role
+FROM role_requests rr
+JOIN users u ON u.id = rr.user_id
+JOIN roles r ON r.id = rr.requested_role_id
+WHERE rr.id = ?
+`,
+          )
+          .get(requestId) as
+          | {
+              id: string;
+              status: string;
+              context: string;
+              created_at: string;
+              updated_at: string;
+              email: string;
+              requested_role: string;
+            }
+          | undefined;
+
+        if (!row) {
+          return { error: "APPLICATION_NOT_FOUND" };
+        }
+
+        let context: unknown = null;
+        try {
+          context = JSON.parse(row.context);
+        } catch {
+          context = row.context;
+        }
+
+        return { ...row, context };
       }
 
       default:
