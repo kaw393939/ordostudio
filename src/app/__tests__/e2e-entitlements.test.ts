@@ -161,4 +161,45 @@ describe("e2e entitlements + Discord mapping", () => {
     const revokeBody = (await revoke.json()) as { status: string };
     expect(revokeBody.status).toBe("REVOKED");
   });
+
+  it("grantEntitlementAdmin is idempotent — granting same key twice does not throw and returns GRANTED both times", async () => {
+    const first = await postEntitlements(
+      new Request("http://localhost:3000/api/v1/admin/entitlements", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+          cookie: fixture.adminCookie,
+        },
+        body: JSON.stringify({
+          action: "grant",
+          user_id: fixture.userId,
+          entitlement_key: "IDEMPOTENCY_TEST",
+        }),
+      }),
+    );
+    expect(first.status).toBe(200);
+    const firstBody = (await first.json()) as { status: string };
+    expect(firstBody.status).toBe("GRANTED");
+
+    // Second grant of the same key — must return 200 GRANTED, not 500.
+    const second = await postEntitlements(
+      new Request("http://localhost:3000/api/v1/admin/entitlements", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+          cookie: fixture.adminCookie,
+        },
+        body: JSON.stringify({
+          action: "grant",
+          user_id: fixture.userId,
+          entitlement_key: "IDEMPOTENCY_TEST",
+        }),
+      }),
+    );
+    expect(second.status).toBe(200);
+    const secondBody = (await second.json()) as { status: string };
+    expect(secondBody.status).toBe("GRANTED");
+  });
 });

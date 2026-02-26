@@ -31,16 +31,14 @@ const upsertExecutionAttempt = (db: ReturnType<typeof openCliDb>, input: {
   idempotencyKey: string;
   now: string;
 }): void => {
-  const existing = db
-    .prepare(
-      "SELECT attempt_count FROM stripe_payout_executions WHERE ledger_entry_id = ? AND provider = 'STRIPE'",
-    )
-    .get(input.ledgerEntryId) as { attempt_count: number } | undefined;
-
-  if (!existing) {
-    db.prepare(
-      `
-INSERT INTO stripe_payout_executions (
+  // INSERT OR IGNORE guards against a TOCTOU race where two concurrent payout
+  // jobs both observe no existing row and both attempt to INSERT. The DB has
+  // `ledger_entry_id TEXT PRIMARY KEY`; the losing INSERT is silently
+  // discarded. We then fall through to the UPDATE path to increment
+  // attempt_count regardless.
+  const insertResult = db.prepare(
+    `
+INSERT OR IGNORE INTO stripe_payout_executions (
   ledger_entry_id,
   provider,
   idempotency_key,
@@ -53,9 +51,19 @@ INSERT INTO stripe_payout_executions (
   updated_at
 ) VALUES (?, 'STRIPE', ?, NULL, 'PENDING', 1, ?, NULL, ?, ?)
 `,
-    ).run(input.ledgerEntryId, input.idempotencyKey, input.now, input.now, input.now);
+  ).run(input.ledgerEntryId, input.idempotencyKey, input.now, input.now, input.now);
+
+  if (insertResult.changes > 0) {
+    // Fresh insert — attempt_count is already 1, nothing more to do.
     return;
   }
+
+  // Row already existed (either from a prior attempt or a concurrent call).
+  const existing = db
+    .prepare(
+      "SELECT attempt_count FROM stripe_payout_executions WHERE ledger_entry_id = ? AND provider = 'STRIPE'",
+    )
+    .get(input.ledgerEntryId) as { attempt_count: number } | undefined;
 
   db.prepare(
     `
@@ -67,7 +75,7 @@ SET status = 'PENDING',
     updated_at = ?
 WHERE ledger_entry_id = ? AND provider = 'STRIPE'
 `,
-  ).run(existing.attempt_count + 1, input.now, input.now, input.ledgerEntryId);
+  ).run((existing?.attempt_count ?? 0) + 1, input.now, input.now, input.ledgerEntryId);
 };
 
 const markExecutionFailed = (db: ReturnType<typeof openCliDb>, input: {
@@ -75,16 +83,10 @@ const markExecutionFailed = (db: ReturnType<typeof openCliDb>, input: {
   now: string;
   error: string;
 }): void => {
-  const existing = db
-    .prepare(
-      "SELECT ledger_entry_id FROM stripe_payout_executions WHERE ledger_entry_id = ? AND provider = 'STRIPE'",
-    )
-    .get(input.ledgerEntryId) as { ledger_entry_id: string } | undefined;
-
-  if (!existing) {
-    db.prepare(
-      `
-INSERT INTO stripe_payout_executions (
+  // INSERT OR IGNORE in case the row was never created (failure before upsert).
+  db.prepare(
+    `
+INSERT OR IGNORE INTO stripe_payout_executions (
   ledger_entry_id,
   provider,
   idempotency_key,
@@ -97,10 +99,9 @@ INSERT INTO stripe_payout_executions (
   updated_at
 ) VALUES (?, 'STRIPE', ?, NULL, 'FAILED', 1, ?, ?, ?, ?)
 `,
-    ).run(input.ledgerEntryId, idempotencyKeyForLedgerEntry(input.ledgerEntryId), input.now, input.error, input.now, input.now);
-    return;
-  }
+  ).run(input.ledgerEntryId, idempotencyKeyForLedgerEntry(input.ledgerEntryId), input.now, input.error, input.now, input.now);
 
+  // Always update — covers both the just-inserted row and an existing row.
   db.prepare(
     `
 UPDATE stripe_payout_executions

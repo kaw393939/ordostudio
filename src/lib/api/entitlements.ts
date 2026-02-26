@@ -131,28 +131,34 @@ export const grantEntitlementAdmin = (input: {
 
     if (!existing) {
       const id = randomUUID();
-      db.prepare(
+      // INSERT OR IGNORE guards against a TOCTOU race where two concurrent
+      // grant calls both observe `existing = undefined`. The DB enforces
+      // UNIQUE(user_id, entitlement_key); the losing INSERT is silently
+      // discarded. We re-read by (user_id, key) to return the winning row.
+      const insertResult = db.prepare(
         `
-INSERT INTO entitlements (
+INSERT OR IGNORE INTO entitlements (
   id, user_id, entitlement_key, status, granted_by, granted_at, revoked_by, revoked_at, reason, created_at, updated_at
 ) VALUES (?, ?, ?, 'GRANTED', ?, ?, NULL, NULL, ?, ?, ?)
 `,
       ).run(id, input.userId, key, input.actorId, now, optionalReason(input.reason), now, now);
 
-      appendAuditLog(db, {
-        actorType: "USER",
-        actorId: input.actorId,
-        action: "admin.entitlement.grant",
-        targetType: "entitlement",
-        requestId: input.requestId,
-        metadata: { userId: input.userId, entitlementKey: key },
-      });
+      if (insertResult.changes > 0) {
+        appendAuditLog(db, {
+          actorType: "USER",
+          actorId: input.actorId,
+          action: "admin.entitlement.grant",
+          targetType: "entitlement",
+          requestId: input.requestId,
+          metadata: { userId: input.userId, entitlementKey: key },
+        });
+      }
 
       return db
         .prepare(
-          "SELECT id, user_id, entitlement_key, status, granted_by, granted_at, revoked_by, revoked_at, reason, created_at, updated_at FROM entitlements WHERE id = ?",
+          "SELECT id, user_id, entitlement_key, status, granted_by, granted_at, revoked_by, revoked_at, reason, created_at, updated_at FROM entitlements WHERE user_id = ? AND entitlement_key = ?",
         )
-        .get(id) as EntitlementRecord;
+        .get(input.userId, key) as EntitlementRecord;
     }
 
     if (existing.status === "GRANTED") {
