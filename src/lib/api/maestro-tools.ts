@@ -679,6 +679,97 @@ export const MAESTRO_TOOLS: AgentToolDefinition[] = [
       },
     },
   },
+
+  // ---- Group I: Affiliate --------------------------------------------------
+  {
+    type: "function",
+    function: {
+      name: "get_affiliate_link",
+      description:
+        "Return the unique referral code and shareable URL for a user. Creates the referral code if one does not yet exist.",
+      parameters: {
+        type: "object",
+        required: ["userId"],
+        properties: {
+          userId: {
+            type: "string",
+            description: "ID of the affiliate user",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_affiliate_stats",
+      description:
+        "Return click, conversion, and commission summary for an affiliate over a configurable time window.",
+      parameters: {
+        type: "object",
+        required: ["userId"],
+        properties: {
+          userId: {
+            type: "string",
+            description: "ID of the affiliate user",
+          },
+          days: {
+            type: "number",
+            description: "Lookback window in days (default 30, max 365)",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_pending_commissions",
+      description:
+        "List referral commissions for a user filtered by status. Status options: pending (EARNED), approved (APPROVED), voided (VOID), all.",
+      parameters: {
+        type: "object",
+        required: ["userId"],
+        properties: {
+          userId: {
+            type: "string",
+            description: "ID of the affiliate user",
+          },
+          status: {
+            type: "string",
+            enum: ["pending", "approved", "voided", "all"],
+            description: "Commission status filter (default: pending)",
+          },
+          limit: {
+            type: "number",
+            description: "Max entries to return (1–100, default 25)",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "void_commission",
+      description:
+        "Void an EARNED referral commission entry. Cannot void already-approved or paid commissions. ADMIN only.",
+      parameters: {
+        type: "object",
+        required: ["commissionId", "reason"],
+        properties: {
+          commissionId: {
+            type: "string",
+            description: "ID of the ledger_entries row to void",
+          },
+          reason: {
+            type: "string",
+            description: "Explanation for why the commission is being voided (5–300 chars)",
+          },
+        },
+      },
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -848,6 +939,27 @@ const getApprenticeProfileSchema = z.object({
 
 const reviewApprenticeApplicationSchema = z.object({
   requestId: z.string().min(1),
+});
+
+// Affiliate schemas (Group I)
+const getAffiliateLinkSchema = z.object({
+  userId: z.string().min(1),
+});
+
+const getAffiliateStatsSchema = z.object({
+  userId: z.string().min(1),
+  days: z.number().int().positive().max(365).default(30),
+});
+
+const listPendingCommissionsSchema = z.object({
+  userId: z.string().min(1),
+  status: z.enum(["pending", "approved", "voided", "all"]).default("pending"),
+  limit: z.number().int().min(1).max(100).default(25),
+});
+
+const voidCommissionSchema = z.object({
+  commissionId: z.string().min(1),
+  reason: z.string().min(5).max(300),
 });
 
 // ---------------------------------------------------------------------------
@@ -1851,6 +1963,194 @@ WHERE rr.id = ?
         }
 
         return { ...row, context };
+      }
+
+      // Group I — Affiliate
+      case "get_affiliate_link": {
+        const { userId } = getAffiliateLinkSchema.parse(args);
+
+        const existing = db
+          .prepare(
+            "SELECT id, code, created_at, updated_at FROM referral_codes WHERE user_id = ?",
+          )
+          .get(userId) as
+          | { id: string; code: string; created_at: string; updated_at: string }
+          | undefined;
+
+        if (existing) {
+          return {
+            referralCode: existing.code,
+            referralUrl: `https://studio-ordo.com/?ref=${existing.code}`,
+            createdAt: existing.created_at,
+          };
+        }
+
+        // Generate new code: 8-char alphanumeric from userId hash + random
+        const newCode = (
+          userId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 4).toUpperCase() +
+          Math.random().toString(36).slice(2, 6).toUpperCase()
+        ).slice(0, 8);
+        const now = new Date().toISOString();
+        const newId = `rc-${userId.slice(0, 8)}-${Date.now()}`;
+
+        db.prepare(
+          "INSERT INTO referral_codes (id, user_id, code, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        ).run(newId, userId, newCode, now, now);
+
+        return {
+          referralCode: newCode,
+          referralUrl: `https://studio-ordo.com/?ref=${newCode}`,
+          createdAt: now,
+        };
+      }
+
+      case "get_affiliate_stats": {
+        const { userId, days } = getAffiliateStatsSchema.parse(args);
+
+        // Look up the user's referral code
+        const rc = db
+          .prepare("SELECT id FROM referral_codes WHERE user_id = ?")
+          .get(userId) as { id: string } | undefined;
+
+        if (!rc) {
+          return {
+            userId,
+            days,
+            clicks: 0,
+            conversions: 0,
+            totalEarnedCents: 0,
+            pendingPayoutCents: 0,
+            note: "No referral code found for this user.",
+          };
+        }
+
+        const since = new Date(
+          Date.now() - days * 24 * 60 * 60 * 1000,
+        ).toISOString();
+
+        const clicks = (
+          db
+            .prepare(
+              "SELECT COUNT(*) AS n FROM referral_clicks WHERE referral_code_id = ? AND created_at >= ?",
+            )
+            .get(rc.id, since) as { n: number }
+        ).n;
+
+        const conversions = (
+          db
+            .prepare(
+              "SELECT COUNT(*) AS n FROM referral_conversions WHERE referral_code_id = ? AND created_at >= ?",
+            )
+            .get(rc.id, since) as { n: number }
+        ).n;
+
+        const ledger = db
+          .prepare(
+            `SELECT
+              SUM(amount_cents) AS total_cents,
+              SUM(CASE WHEN status = 'EARNED' THEN amount_cents ELSE 0 END) AS pending_cents
+             FROM ledger_entries
+             WHERE entry_type = 'REFERRER_COMMISSION'
+               AND beneficiary_user_id = ?
+               AND earned_at >= ?`,
+          )
+          .get(userId, since) as
+          | { total_cents: number | null; pending_cents: number | null }
+          | undefined;
+
+        return {
+          userId,
+          days,
+          clicks,
+          conversions,
+          totalEarnedCents: ledger?.total_cents ?? 0,
+          pendingPayoutCents: ledger?.pending_cents ?? 0,
+        };
+      }
+
+      case "list_pending_commissions": {
+        const { userId, status, limit } =
+          listPendingCommissionsSchema.parse(args);
+
+        // Map spec status to DB status
+        const statusMap: Record<string, string | null> = {
+          pending: "EARNED",
+          approved: "APPROVED",
+          voided: "VOID",
+          all: null,
+        };
+        const dbStatus = statusMap[status]!;
+
+        const whereParts = [
+          "entry_type = 'REFERRER_COMMISSION'",
+          "beneficiary_user_id = ?",
+        ];
+        const params: unknown[] = [userId];
+
+        if (dbStatus !== null) {
+          whereParts.push("status = ?");
+          params.push(dbStatus);
+        }
+
+        params.push(limit);
+
+        const rows = db
+          .prepare(
+            `SELECT id, deal_id, amount_cents, currency, status, earned_at, approved_at, paid_at, created_at
+             FROM ledger_entries
+             WHERE ${whereParts.join(" AND ")}
+             ORDER BY earned_at DESC
+             LIMIT ?`,
+          )
+          .all(...params) as Array<{
+          id: string;
+          deal_id: string;
+          amount_cents: number;
+          currency: string;
+          status: string;
+          earned_at: string;
+          approved_at: string | null;
+          paid_at: string | null;
+          created_at: string;
+        }>;
+
+        return { commissions: rows, count: rows.length };
+      }
+
+      case "void_commission": {
+        const { commissionId, reason } = voidCommissionSchema.parse(args);
+
+        const entry = db
+          .prepare(
+            "SELECT id, status, entry_type FROM ledger_entries WHERE id = ?",
+          )
+          .get(commissionId) as
+          | { id: string; status: string; entry_type: string }
+          | undefined;
+
+        if (!entry) {
+          return { error: "COMMISSION_NOT_FOUND" };
+        }
+        if (entry.entry_type !== "REFERRER_COMMISSION") {
+          return { error: "NOT_A_REFERRER_COMMISSION" };
+        }
+        if (entry.status === "VOID") {
+          return { error: "ALREADY_VOID" };
+        }
+        if (entry.status !== "EARNED") {
+          return {
+            error: `CANNOT_VOID_STATUS_${entry.status}`,
+            details:
+              "Only EARNED commissions may be voided. APPROVED or PAID commissions require a reversal.",
+          };
+        }
+
+        const now = new Date().toISOString();
+        db.prepare(
+          "UPDATE ledger_entries SET status = 'VOID', updated_at = ? WHERE id = ?",
+        ).run(now, commissionId);
+
+        return { success: true, commissionId, reason, voidedAt: now };
       }
 
       default:

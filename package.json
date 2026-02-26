@@ -29,6 +29,7 @@
     "evals:prospect": "node --import tsx ./src/evals/run.ts -- --type intake-agent",
     "evals:events": "node --import tsx ./src/evals/run.ts -- --type maestro",
     "evals:membership": "node --import tsx ./src/evals/run.ts -- --type maestro",
+    "evals:affiliate": "node --import tsx ./src/evals/run.ts -- --type maestro",
     "index-content": "node --import tsx ./src/cli/commands/index-content.ts"
   },
   "dependencies": {
