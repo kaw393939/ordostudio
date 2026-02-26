@@ -65,6 +65,9 @@ const SUGGESTIONS = [
 
 const ACCEPT_TYPES = "image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain";
 
+/** Pre-compiled at module scope — renderSpan is called on every streaming delta */
+const BOLD_RE = /\*\*([^*]+)\*\*/g;
+
 // ---------------------------------------------------------------------------
 // Session helpers (localStorage)
 // ---------------------------------------------------------------------------
@@ -138,7 +141,7 @@ async function filesToAttachments(files: File[]): Promise<Attachment[]> {
  */
 function renderSpan(text: string, key: string | number): React.ReactNode {
   // Bold: **text**
-  const BOLD_RE = /\*\*([^*]+)\*\*/g;
+  BOLD_RE.lastIndex = 0; // reset since regex is stateful (global flag)
   const parts: React.ReactNode[] = [];
   let last = 0;
   let m: RegExpExecArray | null;
@@ -188,6 +191,107 @@ function renderContent(content: string): React.ReactNode {
     return renderParagraph(paragraphs[0], 0);
   }
   return <>{paragraphs.map((p, i) => renderParagraph(p, i))}</>;
+}
+
+// ---------------------------------------------------------------------------
+// SOMarkIcon — canonical Studio Ordo brand mark (circle + S letterform)
+// Used in avatars, headers, and launcher. Single source of path data.
+// ---------------------------------------------------------------------------
+
+function SOMarkIcon({
+  size = 18,
+  className,
+}: {
+  size?: number;
+  className?: string;
+}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 120 120"
+      fill="none"
+      aria-hidden="true"
+      className={className}
+    >
+      <circle cx="60" cy="60" r="54" stroke="currentColor" strokeWidth="6" />
+      <path
+        d="M50 42c0-4.418 3.582-8 8-8h6c4.418 0 8 3.582 8 8v3c0 4.418-3.582 8-8 8h-4c-4.418 0-8 3.582-8 8v3c0 4.418 3.582 8 8 8h6c4.418 0 8-3.582 8-8"
+        stroke="currentColor"
+        strokeWidth="9"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ChatHeader — shared header bar for all three chat modes
+// ---------------------------------------------------------------------------
+
+function ChatHeader({
+  mode,
+  onClose,
+}: {
+  mode: "hero" | "page" | "floating";
+  onClose?: () => void;
+}) {
+  if (mode === "hero") {
+    return (
+      <div className="flex items-center justify-between px-5 py-3 border-b border-border/60 shrink-0 bg-surface">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <SOMarkIcon size={18} className="text-text-primary shrink-0" />
+            <span className="type-label text-text-primary tracking-wide">Studio Ordo</span>
+          </div>
+          <span className="hidden sm:block type-meta text-text-muted">
+            We train engineers to govern the machine.
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />
+          <span className="type-meta text-text-muted">AI agent</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`flex items-center justify-between border-b border-border/60 shrink-0 bg-surface ${
+        mode === "floating" ? "px-4 py-3.5" : "px-5 py-3.5"
+      }`}
+    >
+      <div className="flex items-center gap-2.5">
+        <SOMarkIcon
+          size={mode === "page" ? 20 : 18}
+          className="text-text-primary shrink-0"
+        />
+        <div>
+          <p className="type-label text-text-primary leading-none">Studio Ordo</p>
+          <p className="type-meta text-text-muted mt-0.5">AI agent · replies instantly</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+        {mode === "page" && (
+          <span className="type-meta text-text-muted">Online</span>
+        )}
+        {mode === "floating" && onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-muted text-text-muted hover:text-text-primary transition-colors"
+            aria-label="Close chat"
+          >
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -334,10 +438,7 @@ function AssistantBubble({ message, isStreaming }: { message: Message; isStreami
     <div className="flex justify-start gap-2.5 items-end">
       {/* Avatar mark */}
       <div className="shrink-0 w-6 h-6 rounded-full border border-border bg-surface flex items-center justify-center mb-0.5">
-        <svg width="10" height="10" viewBox="0 0 120 120" fill="none" aria-hidden="true" className="text-text-muted">
-          <circle cx="60" cy="60" r="56" stroke="currentColor" strokeWidth="8" />
-          <path d="M50 42c0-4.418 3.582-8 8-8h6c4.418 0 8 3.582 8 8v3c0 4.418-3.582 8-8 8h-4c-4.418 0-8 3.582-8 8v3c0 4.418 3.582 8 8 8h6c4.418 0 8-3.582 8-8" stroke="currentColor" strokeWidth="10" strokeLinecap="round"/>
-        </svg>
+        <SOMarkIcon size={10} className="text-text-muted" />
       </div>
       <div
         className="text-text-primary rounded-2xl rounded-bl-sm px-4 py-2.5 type-body-sm max-w-[72%] leading-relaxed border border-border/70 bg-surface shadow-sm"
@@ -355,10 +456,7 @@ function TypingIndicator() {
   return (
     <div className="flex justify-start gap-2.5 items-end">
       <div className="shrink-0 w-6 h-6 rounded-full border border-border bg-surface flex items-center justify-center mb-0.5">
-        <svg width="10" height="10" viewBox="0 0 120 120" fill="none" aria-hidden="true" className="text-text-muted">
-          <circle cx="60" cy="60" r="56" stroke="currentColor" strokeWidth="8" />
-          <path d="M50 42c0-4.418 3.582-8 8-8h6c4.418 0 8 3.582 8 8v3c0 4.418-3.582 8-8 8h-4c-4.418 0-8 3.582-8 8v3c0 4.418 3.582 8 8 8h6c4.418 0 8-3.582 8-8" stroke="currentColor" strokeWidth="10" strokeLinecap="round"/>
-        </svg>
+        <SOMarkIcon size={10} className="text-text-muted" />
       </div>
       <div className="border border-border/70 bg-surface rounded-2xl rounded-bl-sm px-4 py-3 flex gap-1.5 items-center shadow-sm">
         <span className="w-1.5 h-1.5 rounded-full bg-text-muted animate-bounce [animation-delay:0ms]" />
@@ -742,25 +840,7 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
         role="region"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border/60 shrink-0 bg-surface">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              {/* Micro mark */}
-              <svg width="18" height="18" viewBox="0 0 120 120" fill="none" aria-hidden="true" className="text-text-primary shrink-0">
-                <circle cx="60" cy="60" r="54" stroke="currentColor" strokeWidth="6" />
-                <path d="M50 42c0-4.418 3.582-8 8-8h6c4.418 0 8 3.582 8 8v3c0 4.418-3.582 8-8 8h-4c-4.418 0-8 3.582-8 8v3c0 4.418 3.582 8 8 8h6c4.418 0 8-3.582 8-8" stroke="currentColor" strokeWidth="9" strokeLinecap="round"/>
-              </svg>
-              <span className="type-label text-text-primary tracking-wide">Studio Ordo</span>
-            </div>
-            <span className="hidden sm:block type-meta text-text-muted">
-              We train engineers to govern the machine.
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />
-            <span className="type-meta text-text-muted">AI agent</span>
-          </div>
-        </div>
+        <ChatHeader mode="hero" />
         {panelBody}
       </div>
     );
@@ -776,22 +856,7 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
         role="region"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border/60 shrink-0 bg-surface">
-          <div className="flex items-center gap-2.5">
-            <svg width="20" height="20" viewBox="0 0 120 120" fill="none" aria-hidden="true" className="text-text-primary shrink-0">
-              <circle cx="60" cy="60" r="54" stroke="currentColor" strokeWidth="6" />
-              <path d="M50 42c0-4.418 3.582-8 8-8h6c4.418 0 8 3.582 8 8v3c0 4.418-3.582 8-8 8h-4c-4.418 0-8 3.582-8 8v3c0 4.418 3.582 8 8 8h6c4.418 0 8-3.582 8-8" stroke="currentColor" strokeWidth="9" strokeLinecap="round"/>
-            </svg>
-            <div>
-              <p className="type-label text-text-primary leading-none">Studio Ordo</p>
-              <p className="type-meta text-text-muted mt-0.5">AI agent · replies instantly</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            <span className="type-meta text-text-muted">Online</span>
-          </div>
-        </div>
+        <ChatHeader mode="page" />
         {panelBody}
       </div>
     );
@@ -808,33 +873,7 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
           role="region"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3.5 border-b border-border/60 shrink-0 bg-surface">
-            <div className="flex items-center gap-2.5">
-              <svg width="18" height="18" viewBox="0 0 120 120" fill="none" aria-hidden="true" className="text-text-primary shrink-0">
-                <circle cx="60" cy="60" r="54" stroke="currentColor" strokeWidth="6" />
-                <path d="M50 42c0-4.418 3.582-8 8-8h6c4.418 0 8 3.582 8 8v3c0 4.418-3.582 8-8 8h-4c-4.418 0-8 3.582-8 8v3c0 4.418 3.582 8 8 8h6c4.418 0 8-3.582 8-8" stroke="currentColor" strokeWidth="9" strokeLinecap="round"/>
-              </svg>
-              <div>
-                <p className="type-label text-text-primary leading-none">Studio Ordo</p>
-                <p className="type-meta text-text-muted mt-0.5">AI agent · replies instantly</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-muted text-text-muted hover:text-text-primary transition-colors"
-                aria-label="Close chat"
-              >
-                <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                  <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-              </button>
-            </div>
-          </div>
+          <ChatHeader mode="floating" onClose={() => setIsOpen(false)} />
           {panelBody}
         </div>
       )}
@@ -848,10 +887,7 @@ export default function ChatWidget({ mode }: ChatWidgetProps) {
           aria-label="Open Studio Ordo chat"
         >
           {/* Micro mark white */}
-          <svg width="16" height="16" viewBox="0 0 120 120" fill="none" aria-hidden="true" className="shrink-0">
-            <circle cx="60" cy="60" r="54" stroke="currentColor" strokeWidth="7" />
-            <path d="M50 42c0-4.418 3.582-8 8-8h6c4.418 0 8 3.582 8 8v3c0 4.418-3.582 8-8 8h-4c-4.418 0-8 3.582-8 8v3c0 4.418 3.582 8 8 8h6c4.418 0 8-3.582 8-8" stroke="currentColor" strokeWidth="10" strokeLinecap="round"/>
-          </svg>
+          <SOMarkIcon size={16} className="shrink-0" />
           <span>Talk to us</span>
           <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" />
         </button>
