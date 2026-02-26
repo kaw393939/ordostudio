@@ -24,7 +24,8 @@ export interface FeedItem {
     | "DealClosed"
     | "PaymentReceived"
     | "NewsletterScheduled"
-    | "BookingCreated";
+    | "BookingCreated"
+    | "UrgentIntakeFlagged";
   timestamp: string;
   title: string;
   description: string;

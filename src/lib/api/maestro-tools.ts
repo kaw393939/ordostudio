@@ -300,6 +300,79 @@ export const MAESTRO_TOOLS: AgentToolDefinition[] = [
       },
     },
   },
+
+  // ---------------------------------------------------------------------------
+  // Group E — Journey-F: Urgent Escalation & Callback
+  // ---------------------------------------------------------------------------
+  {
+    type: "function",
+    function: {
+      name: "flag_urgent_intake",
+      description:
+        "Flag an intake request as urgent and write an UrgentIntakeFlagged feed event. Use when a lead expresses urgency or immediate readiness to buy.",
+      parameters: {
+        type: "object",
+        required: ["intakeId", "reason"],
+        properties: {
+          intakeId: {
+            type: "string",
+            description: "ID of the intake request to flag as urgent",
+          },
+          reason: {
+            type: "string",
+            description:
+              "Why this intake needs urgent attention (5–500 chars)",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "trigger_urgent_callback",
+      description:
+        "Book an urgent callback by reserving a maestro availability slot and creating a bookings row. Require operator confirmation before calling.",
+      parameters: {
+        type: "object",
+        required: ["intakeId", "slotId"],
+        properties: {
+          intakeId: {
+            type: "string",
+            description: "Intake request ID to book callback for",
+          },
+          slotId: {
+            type: "string",
+            description: "Maestro availability slot ID to reserve",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "log_callback_outcome",
+      description:
+        "Record the outcome of a callback for an intake (converted, no_show, rescheduled, declined).",
+      parameters: {
+        type: "object",
+        required: ["intakeId", "outcome"],
+        properties: {
+          intakeId: { type: "string", description: "Intake request ID" },
+          outcome: {
+            type: "string",
+            enum: ["converted", "no_show", "rescheduled", "declined"],
+            description: "Result of the callback",
+          },
+          notes: {
+            type: "string",
+            description: "Optional free text notes (max 1000 chars)",
+          },
+        },
+      },
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -349,6 +422,23 @@ const getAuditLogSchema = z.object({
   limit: z.number().int().min(1).max(100).default(20),
   action: z.string().optional(),
   actor_type: z.enum(["USER", "SERVICE", "AGENT"]).optional(),
+});
+
+// Journey-F schemas
+const flagUrgentIntakeSchema = z.object({
+  intakeId: z.string().min(1),
+  reason: z.string().min(5).max(500),
+});
+
+const triggerUrgentCallbackSchema = z.object({
+  intakeId: z.string().min(1),
+  slotId: z.string().min(1),
+});
+
+const logCallbackOutcomeSchema = z.object({
+  intakeId: z.string().min(1),
+  outcome: z.enum(["converted", "no_show", "rescheduled", "declined"]),
+  notes: z.string().max(1000).optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -716,6 +806,113 @@ LIMIT ?
         }>;
 
         return { entries: rows, count: rows.length };
+      }
+
+      // ------------------------------------------------------------------
+      // Group E — Journey-F: Urgent Escalation & Callback
+      // ------------------------------------------------------------------
+
+      case "flag_urgent_intake": {
+        const { intakeId, reason } = flagUrgentIntakeSchema.parse(args);
+
+        const intake = db
+          .prepare(
+            "SELECT id, owner_user_id FROM intake_requests WHERE id = ?",
+          )
+          .get(intakeId) as
+          | { id: string; owner_user_id: string | null }
+          | undefined;
+        if (!intake) return { error: "INTAKE_NOT_FOUND" };
+
+        const now = new Date().toISOString();
+
+        // Upsert triage_tickets: update if exists, insert if not
+        const existingTicket = db
+          .prepare(
+            "SELECT id FROM triage_tickets WHERE intake_request_id = ?",
+          )
+          .get(intakeId);
+        if (existingTicket) {
+          db.prepare(
+            "UPDATE triage_tickets SET priority = 'urgent', updated_at = ? WHERE intake_request_id = ?",
+          ).run(now, intakeId);
+        } else {
+          db.prepare(
+            `INSERT INTO triage_tickets
+             (id, intake_request_id, category, confidence, summary, recommended_action, priority, status, created_at, updated_at)
+             VALUES (?, ?, 'urgent_escalation', 1.0, ?, 'urgent_callback', 'urgent', 'pending', ?, ?)`,
+          ).run(randomUUID(), intakeId, reason, now, now);
+        }
+
+        // Write feed event only when there is a valid user to attach it to
+        if (intake.owner_user_id) {
+          writeFeedEvent(db, {
+            userId: intake.owner_user_id,
+            type: "UrgentIntakeFlagged",
+            title: `Intake ${intakeId} flagged as urgent`,
+            description: `${reason} (intakeId: ${intakeId})`,
+          });
+        }
+
+        return { intakeId, priority: "urgent", flaggedAt: now };
+      }
+
+      case "trigger_urgent_callback": {
+        const { intakeId, slotId } = triggerUrgentCallbackSchema.parse(args);
+
+        const result = (
+          db.transaction(() => {
+            const slot = db
+              .prepare(
+                "SELECT id, status FROM maestro_availability WHERE id = ?",
+              )
+              .get(slotId) as { id: string; status: string } | undefined;
+            if (!slot) throw new Error("SLOT_NOT_FOUND");
+            if (slot.status !== "OPEN") throw new Error("SLOT_CAPACITY_EXCEEDED");
+
+            db.prepare(
+              "UPDATE maestro_availability SET status = 'BOOKED' WHERE id = ?",
+            ).run(slotId);
+
+            const intakeRow = db
+              .prepare(
+                "SELECT contact_email FROM intake_requests WHERE id = ?",
+              )
+              .get(intakeId) as { contact_email: string } | undefined;
+
+            const bookingId = randomUUID();
+            db.prepare(
+              `INSERT INTO bookings
+               (id, intake_request_id, maestro_availability_id, prospect_email, status, created_at)
+               VALUES (?, ?, ?, ?, 'CONFIRMED', strftime('%Y-%m-%dT%H:%M:%SZ','now'))`,
+            ).run(
+              bookingId,
+              intakeId,
+              slotId,
+              intakeRow?.contact_email ?? "",
+            );
+
+            return { bookingId, slotId, intakeId };
+          }) as () => { bookingId: string; slotId: string; intakeId: string }
+        )();
+
+        return { ...result, bookedAt: new Date().toISOString() };
+      }
+
+      case "log_callback_outcome": {
+        const { intakeId, outcome, notes } = logCallbackOutcomeSchema.parse(args);
+        const now = new Date().toISOString();
+
+        const info = db
+          .prepare(
+            `UPDATE bookings
+             SET outcome = ?, outcome_notes = ?, outcome_at = ?
+             WHERE intake_request_id = ? AND status = 'CONFIRMED'`,
+          )
+          .run(outcome, notes ?? null, now, intakeId);
+
+        if (info.changes === 0) return { error: "NO_BOOKING_FOUND" };
+        return { intakeId, outcome, loggedAt: now };
       }
 
       default:

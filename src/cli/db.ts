@@ -1627,6 +1627,14 @@ CREATE TABLE IF NOT EXISTS search_analytics (
 CREATE INDEX IF NOT EXISTS idx_search_analytics_created ON search_analytics(created_at);
 `,
   },
+  {
+    name: "047_bookings_outcome_columns",
+    sql: `
+ALTER TABLE bookings ADD COLUMN outcome       TEXT CHECK (outcome IN ('converted','no_show','rescheduled','declined'));
+ALTER TABLE bookings ADD COLUMN outcome_notes TEXT;
+ALTER TABLE bookings ADD COLUMN outcome_at    TEXT;
+`,
+  },
 ];
 
 const ensureMetaTable = (db: Database.Database): void => {
