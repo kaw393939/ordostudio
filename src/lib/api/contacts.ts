@@ -65,29 +65,30 @@ export function upsertContact(
   const now = new Date().toISOString();
   const email = input.email.trim().toLowerCase();
 
-  // Check existing
-  const existing = db
-    .prepare(`SELECT * FROM contacts WHERE email = ?`)
-    .get(email) as ContactRecord | undefined;
-
-  if (existing) {
-    // Update full_name if now known and wasn't before
-    if (input.fullName && !existing.full_name) {
-      db.prepare(
-        `UPDATE contacts SET full_name = ?, updated_at = ? WHERE email = ?`,
-      ).run(input.fullName.trim(), now, email);
-      return { ...existing, full_name: input.fullName.trim(), updated_at: now };
+  const id = randomUUID();
+  let row: ContactRecord;
+  try {
+    db.prepare(
+      `INSERT INTO contacts (id, email, full_name, user_id, source, status, notes, assigned_to, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'LEAD', NULL, NULL, ?, ?)`,
+    ).run(id, email, input.fullName?.trim() ?? null, input.userId ?? null, input.source, now, now);
+    row = db.prepare(`SELECT * FROM contacts WHERE id = ?`).get(id) as ContactRecord;
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes("UNIQUE constraint failed: contacts.email")) {
+      row = db.prepare(`SELECT * FROM contacts WHERE email = ?`).get(email) as ContactRecord;
+    } else {
+      throw err;
     }
-    return existing;
   }
 
-  const id = randomUUID();
-  db.prepare(
-    `INSERT INTO contacts (id, email, full_name, user_id, source, status, notes, assigned_to, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'LEAD', NULL, NULL, ?, ?)`,
-  ).run(id, email, input.fullName?.trim() ?? null, input.userId ?? null, input.source, now, now);
-
-  return db.prepare(`SELECT * FROM contacts WHERE id = ?`).get(id) as ContactRecord;
+  // Update full_name if now known and wasn't before
+  if (input.fullName && !row.full_name) {
+    db.prepare(
+      `UPDATE contacts SET full_name = ?, updated_at = ? WHERE email = ?`,
+    ).run(input.fullName.trim(), now, email);
+    return { ...row, full_name: input.fullName.trim(), updated_at: now };
+  }
+  return row;
 }
 
 // ---------------------------------------------------------------------------

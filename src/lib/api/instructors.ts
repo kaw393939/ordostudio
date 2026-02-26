@@ -256,11 +256,6 @@ export const createInstructor = (
   try {
     ensureInstructorTables(db);
 
-    const existing = db.prepare("SELECT id FROM instructors WHERE email = ?").get(email) as { id: string } | undefined;
-    if (existing) {
-      throw new InvalidInputError("instructor_email_exists");
-    }
-
     const now = new Date().toISOString();
     const created: InstructorRecord = {
       id: randomUUID(),
@@ -272,12 +267,19 @@ export const createInstructor = (
       updated_at: now,
     };
 
-    db.prepare(
-      `
+    try {
+      db.prepare(
+        `
 INSERT INTO instructors (id, name, email, status, capabilities_json, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?)
 `,
-    ).run(created.id, created.name, created.email, created.status, JSON.stringify(created.capabilities), now, now);
+      ).run(created.id, created.name, created.email, created.status, JSON.stringify(created.capabilities), now, now);
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes("UNIQUE constraint failed: instructors.email")) {
+        throw new InvalidInputError("instructor_email_exists");
+      }
+      throw err;
+    }
 
     appendAuditLog(db, {
       actorType: "USER",

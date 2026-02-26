@@ -96,8 +96,16 @@ export const getOrCreateReferralCode = (input: { userId: string; requestId: stri
 
         return { id, user_id: input.userId, code, created_at: now, updated_at: now };
       } catch (error) {
-        if (String(error).toLowerCase().includes("unique")) {
-          continue;
+        const msg = error instanceof Error ? error.message : String(error);
+        if (msg.includes("UNIQUE constraint failed: referral_codes.user_id")) {
+          // Row was just created by a concurrent request — return it
+          const created = db
+            .prepare("SELECT id, user_id, code, created_at, updated_at FROM referral_codes WHERE user_id = ?")
+            .get(input.userId) as ReferralCodeRecord | undefined;
+          if (created) return created;
+        }
+        if (msg.toLowerCase().includes("unique")) {
+          continue; // code collision — retry with a new code
         }
         throw error;
       }

@@ -354,18 +354,24 @@ export const addVocabularyTerm = (input: {
   const config = resolveConfig({ envVars: process.env });
   const db = openCliDb(config);
   try {
-    const existing = db
-      .prepare("SELECT id FROM apprentice_vocabulary WHERE user_id = ? AND term_slug = ?")
-      .get(input.userId, input.termSlug) as { id: string } | undefined;
-    if (existing) throw new VocabularyTermAlreadyExistsError(input.termSlug);
-
     const now = new Date().toISOString();
     const id = randomUUID();
 
-    db.prepare(
-      `INSERT INTO apprentice_vocabulary (id, user_id, term_slug, term_name, demonstrated_at, context, created_at)
+    try {
+      db.prepare(
+        `INSERT INTO apprentice_vocabulary (id, user_id, term_slug, term_name, demonstrated_at, context, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ).run(id, input.userId, input.termSlug, input.termName, now, input.context ?? null, now);
+      ).run(id, input.userId, input.termSlug, input.termName, now, input.context ?? null, now);
+    } catch (err: unknown) {
+      if (
+        err instanceof Error &&
+        err.message.includes("UNIQUE constraint failed") &&
+        err.message.includes("apprentice_vocabulary")
+      ) {
+        throw new VocabularyTermAlreadyExistsError(input.termSlug);
+      }
+      throw err;
+    }
 
     appendAuditLog(db, {
       action: "apprentice.vocabulary.add",

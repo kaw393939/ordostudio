@@ -409,17 +409,24 @@ export const subscribeNewsletter = (input: { email: string; requestId: string })
       throw new Error("invalid_email");
     }
 
-    const existing = db
-      .prepare(
-        "SELECT id, email, status, unsubscribe_seed, unsubscribed_at, created_at, updated_at FROM newsletter_subscribers WHERE email = ?",
-      )
-      .get(email) as NewsletterSubscriberRecord | undefined;
+    let existing: NewsletterSubscriberRecord | undefined;
 
-    if (!existing) {
+    try {
       db.prepare(
         "INSERT INTO newsletter_subscribers (id, email, status, unsubscribe_seed, unsubscribed_at, created_at, updated_at) VALUES (?, ?, 'ACTIVE', ?, NULL, ?, ?)",
       ).run(randomUUID(), email, randomUUID(), now, now);
       return { ok: true };
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes("UNIQUE constraint failed: newsletter_subscribers.email")) {
+        existing = db
+          .prepare(
+            "SELECT id, email, status, unsubscribe_seed, unsubscribed_at, created_at, updated_at FROM newsletter_subscribers WHERE email = ?",
+          )
+          .get(email) as NewsletterSubscriberRecord | undefined;
+        if (!existing) throw err;
+      } else {
+        throw err;
+      }
     }
 
     if (existing.status === "ACTIVE") {
