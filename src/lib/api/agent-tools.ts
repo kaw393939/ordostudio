@@ -58,7 +58,10 @@ type ToolName =
   | "get_site_setting"
   | "submit_intake"
   | "get_available_slots"
-  | "create_booking";
+  | "create_booking"
+  | "subscribe_to_newsletter"
+  | "convert_subscriber_to_lead"
+  | "capture_content_interest";
 
 /**
  * Exported canonical tool name constants.
@@ -67,11 +70,14 @@ type ToolName =
  * The `satisfies` constraint ensures every value stays within ToolName.
  */
 export const TOOL_NAMES = {
-  CONTENT_SEARCH:       "content_search",
-  GET_SITE_SETTING:     "get_site_setting",
-  SUBMIT_INTAKE:        "submit_intake",
-  GET_AVAILABLE_SLOTS:  "get_available_slots",
-  CREATE_BOOKING:       "create_booking",
+  CONTENT_SEARCH:             "content_search",
+  GET_SITE_SETTING:           "get_site_setting",
+  SUBMIT_INTAKE:              "submit_intake",
+  GET_AVAILABLE_SLOTS:        "get_available_slots",
+  CREATE_BOOKING:             "create_booking",
+  SUBSCRIBE_TO_NEWSLETTER:    "subscribe_to_newsletter",
+  CONVERT_SUBSCRIBER_TO_LEAD: "convert_subscriber_to_lead",
+  CAPTURE_CONTENT_INTEREST:   "capture_content_interest",
 } as const satisfies Record<string, ToolName>;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -87,6 +93,14 @@ interface ToolEntry<TArgs> {
 type ToolRegistry = {
   [K in ToolName]: AnyToolEntry;
 };
+
+// ---------------------------------------------------------------------------
+// Prospect-agent helpers
+// ---------------------------------------------------------------------------
+
+function generateId(): string {
+  return randomUUID();
+}
 
 // ---------------------------------------------------------------------------
 // Tool Registry
@@ -364,6 +378,204 @@ const TOOL_REGISTRY: ToolRegistry = {
         })();
 
         return result;
+      } finally {
+        if (shouldClose) activeDb.close();
+      }
+    },
+  },
+
+  // ---------------------------------------------------------------------------
+  // Group PA — Prospect-Agent: Top-of-Funnel Automation
+  // ---------------------------------------------------------------------------
+
+  subscribe_to_newsletter: {
+    definition: {
+      type: "function",
+      function: {
+        name: "subscribe_to_newsletter",
+        description:
+          "Subscribe a visitor to the newsletter inline in the chat. Idempotent — re-subscribing an existing subscriber reactivates them gracefully.",
+        parameters: {
+          type: "object",
+          properties: {
+            email: {
+              type: "string",
+              description: "Visitor's email address.",
+            },
+          },
+          required: ["email"],
+        },
+      },
+    },
+    schema: z.object({ email: z.string().email() }),
+    execute: async ({ email }: { email: string }, db: Db | null) => {
+      const activeDb = db ?? openCliDb(resolveConfig({ envVars: process.env }));
+      const shouldClose = !db;
+      try {
+        const normalised = email.trim().toLowerCase();
+        const existing = activeDb
+          .prepare("SELECT id, status FROM newsletter_subscribers WHERE email = ?")
+          .get(normalised) as { id: string; status: string } | undefined;
+
+        if (existing) {
+          // Reactivate if unsubscribed
+          if (existing.status === "UNSUBSCRIBED") {
+            const now = new Date().toISOString();
+            const newSeed = generateId();
+            activeDb
+              .prepare(
+                "UPDATE newsletter_subscribers SET status = 'ACTIVE', unsubscribe_seed = ?, unsubscribed_at = NULL, updated_at = ? WHERE id = ?",
+              )
+              .run(newSeed, now, existing.id);
+            return { subscriberId: existing.id, status: "ACTIVE", isNew: false };
+          }
+          return { subscriberId: existing.id, status: existing.status, isNew: false };
+        }
+
+        const id = generateId();
+        const seed = generateId();
+        const now = new Date().toISOString();
+        activeDb
+          .prepare(
+            "INSERT INTO newsletter_subscribers (id, email, status, unsubscribe_seed, unsubscribed_at, created_at, updated_at) VALUES (?, ?, 'ACTIVE', ?, NULL, ?, ?)",
+          )
+          .run(id, normalised, seed, now, now);
+        return { subscriberId: id, status: "ACTIVE", isNew: true };
+      } finally {
+        if (shouldClose) activeDb.close();
+      }
+    },
+  },
+
+  convert_subscriber_to_lead: {
+    definition: {
+      type: "function",
+      function: {
+        name: "convert_subscriber_to_lead",
+        description:
+          "Convert an existing newsletter subscriber into an intake lead. Creates an intake_requests row. Idempotent — returns existing intake if one already exists for this subscriber's email.",
+        parameters: {
+          type: "object",
+          properties: {
+            subscriberId: {
+              type: "string",
+              description: "ID returned by subscribe_to_newsletter.",
+            },
+            contactName: {
+              type: "string",
+              description: "Full name of the subscriber (required for intake).",
+            },
+            intakeContext: {
+              type: "string",
+              description: "Brief summary of what they expressed interest in (max 1000 chars).",
+            },
+          },
+          required: ["subscriberId", "contactName"],
+        },
+      },
+    },
+    schema: z.object({
+      subscriberId: z.string().min(1),
+      contactName: z.string().min(1),
+      intakeContext: z.string().max(1000).optional(),
+    }),
+    execute: async (
+      args: { subscriberId: string; contactName: string; intakeContext?: string },
+      db: Db | null,
+    ) => {
+      const activeDb = db ?? openCliDb(resolveConfig({ envVars: process.env }));
+      const shouldClose = !db;
+      try {
+        const sub = activeDb
+          .prepare("SELECT id, email FROM newsletter_subscribers WHERE id = ?")
+          .get(args.subscriberId) as { id: string; email: string } | undefined;
+        if (!sub) return { error: "SUBSCRIBER_NOT_FOUND" };
+
+        // Idempotency: check for existing open intake by email
+        const existing = activeDb
+          .prepare(
+            "SELECT id FROM intake_requests WHERE contact_email = ? AND status NOT IN ('LOST') LIMIT 1",
+          )
+          .get(sub.email) as { id: string } | undefined;
+        if (existing) return { intakeId: existing.id, isNew: false };
+
+        const intakeId = generateId();
+        const now = new Date().toISOString();
+        const goals =
+          args.intakeContext ?? "Converted from newsletter subscription via chat";
+        activeDb
+          .prepare(
+            `INSERT INTO intake_requests
+               (id, audience, contact_name, contact_email, goals, status, priority, created_at, updated_at)
+             VALUES (?, 'INDIVIDUAL', ?, ?, ?, 'NEW', 50, ?, ?)`,
+          )
+          .run(intakeId, args.contactName, sub.email, goals, now, now);
+
+        return { intakeId, isNew: true };
+      } finally {
+        if (shouldClose) activeDb.close();
+      }
+    },
+  },
+
+  capture_content_interest: {
+    definition: {
+      type: "function",
+      function: {
+        name: "capture_content_interest",
+        description:
+          "Record content topics a visitor expressed interest in against their current session conversation. Returns captured topics and whether session tracking succeeded.",
+        parameters: {
+          type: "object",
+          properties: {
+            topics: {
+              type: "array",
+              items: { type: "string" },
+              description: "Content topics the user expressed interest in (1–10 entries).",
+            },
+            sessionId: {
+              type: "string",
+              description: "Current session ID for anonymous interest tracking.",
+            },
+          },
+          required: ["topics"],
+        },
+      },
+    },
+    schema: z.object({
+      topics: z.array(z.string().max(80)).min(1).max(10),
+      sessionId: z.string().optional(),
+    }),
+    execute: async (
+      args: { topics: string[]; sessionId?: string },
+      db: Db | null,
+    ) => {
+      if (!args.sessionId) {
+        return { captured: args.topics, sessionTracked: false };
+      }
+      const activeDb = db ?? openCliDb(resolveConfig({ envVars: process.env }));
+      const shouldClose = !db;
+      try {
+        const conv = activeDb
+          .prepare(
+            "SELECT id, metadata_json FROM intake_conversations WHERE session_id = ? ORDER BY created_at DESC LIMIT 1",
+          )
+          .get(args.sessionId) as
+          | { id: string; metadata_json: string | null }
+          | undefined;
+
+        if (conv) {
+          const meta: Record<string, unknown> = JSON.parse(conv.metadata_json ?? "{}") as Record<string, unknown>;
+          const prev = Array.isArray(meta.content_interests)
+            ? (meta.content_interests as string[])
+            : [];
+          meta.content_interests = [...new Set([...prev, ...args.topics])];
+          activeDb
+            .prepare("UPDATE intake_conversations SET metadata_json = ?, updated_at = ? WHERE id = ?")
+            .run(JSON.stringify(meta), new Date().toISOString(), conv.id);
+        }
+
+        return { captured: args.topics, sessionTracked: !!conv };
       } finally {
         if (shouldClose) activeDb.close();
       }
