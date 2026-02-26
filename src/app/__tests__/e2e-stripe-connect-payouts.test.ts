@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import Database from "better-sqlite3";
 
 import { POST as postOffer } from "../api/v1/offers/route";
 import { POST as postIntake } from "../api/v1/intake/route";
@@ -315,5 +316,54 @@ describe("e2e Stripe Connect onboarding + ledger payout execution", () => {
     expect(ledgerPaid.status).toBe(200);
     const paidBody = (await ledgerPaid.json()) as { items: { id: string; deal_id: string }[] };
     expect(paidBody.items.some((row) => row.deal_id === dealBody.id)).toBe(true);
+  });
+
+  it("createStripeConnectOnboardingLinkForUser is idempotent — two calls return the same stripe_account_id", async () => {
+    const firstRes = requireResponse(
+      await postStripeConnect(
+        new Request("http://localhost:3000/api/v1/account/stripe-connect", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            origin: "http://localhost:3000",
+            cookie: fixture.userCookie,
+          },
+          body: JSON.stringify({
+            return_url: "http://localhost:3000/dashboard",
+            refresh_url: "http://localhost:3000/dashboard",
+          }),
+        }),
+      ),
+    );
+    expect(firstRes.status).toBe(200);
+
+    // Second call must not throw a UNIQUE constraint violation.
+    const secondRes = requireResponse(
+      await postStripeConnect(
+        new Request("http://localhost:3000/api/v1/account/stripe-connect", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            origin: "http://localhost:3000",
+            cookie: fixture.userCookie,
+          },
+          body: JSON.stringify({
+            return_url: "http://localhost:3000/dashboard",
+            refresh_url: "http://localhost:3000/dashboard",
+          }),
+        }),
+      ),
+    );
+    expect(secondRes.status).toBe(200);
+
+    // Verify there is exactly one row in stripe_connect_accounts for this user.
+    const db = new Database(fixture.dbPath);
+    const rows = db
+      .prepare("SELECT stripe_account_id FROM stripe_connect_accounts WHERE user_id = ?")
+      .all(fixture.userId) as { stripe_account_id: string }[];
+    db.close();
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.stripe_account_id).toBe("acct_test_123");
   });
 });

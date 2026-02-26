@@ -99,9 +99,14 @@ const ensureConnectAccountRow = async (input: {
     const now = new Date().toISOString();
     const created = await createConnectAccount({ email: input.email });
 
+    // INSERT OR IGNORE guards against a race where two concurrent calls both
+    // observe `existing = undefined` and both reach createConnectAccount. The
+    // second INSERT is silently discarded; we then re-read the winning row.
+    // Note: the losing Stripe account is abandoned in Stripe's system — an
+    // acceptable trade-off until a distributed mutex is warranted.
     db.prepare(
       `
-INSERT INTO stripe_connect_accounts (
+INSERT OR IGNORE INTO stripe_connect_accounts (
   user_id,
   provider,
   stripe_account_id,
