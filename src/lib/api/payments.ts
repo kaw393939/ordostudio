@@ -36,6 +36,7 @@ export class PaymentPreconditionError extends Error {
       | "offer_inactive"
       | "pricing_missing"
       | "payment_missing_intent"
+      | "payment_not_paid"
       | "confirm_required",
   ) {
     super(`Payment precondition failed: ${reason}`);
@@ -44,7 +45,12 @@ export class PaymentPreconditionError extends Error {
 }
 
 export class PaymentConflictError extends Error {
-  constructor(public readonly reason: "already_paid" | "already_refunded") {
+  constructor(
+    public readonly reason:
+      | "already_paid"
+      | "already_refunded"
+      | "checkout_in_progress",
+  ) {
     super(`Payment conflict: ${reason}`);
     this.name = "PaymentConflictError";
   }
@@ -125,17 +131,34 @@ export const createStripeCheckoutForDeal = async (input: {
     if (existing?.status === "REFUNDED") {
       throw new PaymentConflictError("already_refunded");
     }
+    // If a checkout is already in progress, do not start another.
+    // The UNIQUE index on deal_payments(deal_id) WHERE status='CREATED'
+    // enforces this at the DB level; this guard provides the domain error.
+    if (existing?.status === "CREATED") {
+      throw new PaymentConflictError("checkout_in_progress");
+    }
 
     const now = new Date().toISOString();
     const paymentId = randomUUID();
 
-    db.prepare(
-      `
+    try {
+      db.prepare(
+        `
 INSERT INTO deal_payments (
   id, deal_id, provider, checkout_session_id, payment_intent_id, status, amount_cents, currency, created_at, updated_at
 ) VALUES (?, ?, 'STRIPE', NULL, NULL, 'CREATED', ?, ?, ?, ?)
 `,
     ).run(paymentId, input.dealId, deal.price_cents, deal.currency, now, now);
+    } catch (insertErr: unknown) {
+      if (
+        insertErr instanceof Error &&
+        insertErr.message.includes("UNIQUE constraint failed")
+      ) {
+        // Concurrent request already created a CREATED record for this deal.
+        throw new PaymentConflictError("checkout_in_progress");
+      }
+      throw insertErr;
+    }
 
     const session = await createCheckoutSession({
       successUrl: input.successUrl,
@@ -313,6 +336,11 @@ export const refundDealPaymentAdmin = async (input: {
 
     if (payment.status === "REFUNDED") {
       throw new PaymentConflictError("already_refunded");
+    }
+
+    // Only PAID payments can be refunded; CREATED means checkout was never completed.
+    if (payment.status !== "PAID") {
+      throw new PaymentPreconditionError("payment_not_paid");
     }
 
     if (!payment.payment_intent_id) {

@@ -1566,6 +1566,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_ledger_deal_entry_type
   WHERE deal_id IS NOT NULL;
 `,
   },
+  {
+    name: "043_deal_payments_unique_created",
+    sql: `
+-- Prevent concurrent checkout creation for the same deal.
+-- Allows at most one CREATED payment per deal at any time.
+-- PAID and REFUNDED records are exempt so history is preserved.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_deal_payments_created
+  ON deal_payments(deal_id)
+  WHERE status = 'CREATED';
+`,
+  },
 ];
 
 const ensureMetaTable = (db: Database.Database): void => {
