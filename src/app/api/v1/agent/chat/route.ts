@@ -282,10 +282,17 @@ function buildClaudeStreamingResponse(params: {
   systemPrompt: string;
   anthropicKey: string;
 }): Response {
-  const priorTextMessages = params.messages
+  // Build history for Claude from all stored messages *except* the
+  // current user turn (which is appended inside runClaudeAgentLoopStream).
+  // • Skip tool-call records (role="tool") — Claude manages those internally.
+  // • Drop any leading assistant message (e.g. the stored opening greeting)
+  //   because the Anthropic API requires the first history message to be "user".
+  const allPriorText = params.messages
     .slice(0, -1)
     .filter((m) => m.role !== "tool")
     .map((m) => ({ role: m.role as "user" | "assistant", text: m.content }));
+  const firstUserIdx = allPriorText.findIndex((m) => m.role === "user");
+  const priorTextMessages = firstUserIdx >= 0 ? allPriorText.slice(firstUserIdx) : [];
 
   return buildStreamingResponse({
     db: params.db,

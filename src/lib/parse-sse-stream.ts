@@ -96,9 +96,11 @@ export async function parseSSEStream(
         } else if (msg.done) {
           handlers.onDone({
             conversationId:
-              typeof msg.conversationId === "string"
-                ? msg.conversationId
-                : null,
+              typeof msg.conversation_id === "string"
+                ? msg.conversation_id
+                : typeof msg.conversationId === "string"
+                  ? msg.conversationId
+                  : null,
             sessionId:
               typeof msg.sessionId === "string" ? msg.sessionId : null,
             intakeSubmitted: msg.intake_submitted === true || msg.intakeSubmitted === true,
