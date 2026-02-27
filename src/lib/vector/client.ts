@@ -104,7 +104,7 @@ async function embedWithGemini(text: string): Promise<Float32Array> {
   if (!_geminiAI) {
     _geminiAI = new GoogleGenAI({ apiKey: process.env.GOOGLE_GEMINI_API_KEY });
   }
-  const model = process.env.GEMINI_EMBEDDING_MODEL ?? "text-embedding-004";
+  const model = process.env.GEMINI_EMBEDDING_MODEL ?? "gemini-embedding-001";
   const response = await _geminiAI.models.embedContent({
     model,
     contents: text,

@@ -109,16 +109,21 @@ export async function runGeminiAgentLoopStream(
   while (round < maxToolRounds) {
     round++;
 
+    const hasTools = functionDeclarations.length > 0;
     const stream = await client.models.generateContentStream({
       model,
       contents: history,
       config: {
         systemInstruction: systemPrompt,
         maxOutputTokens: MAX_AGENT_TOKENS,
-        tools: [{ functionDeclarations }],
-        toolConfig: {
-          functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO },
-        },
+        ...(hasTools
+          ? {
+              tools: [{ functionDeclarations }],
+              toolConfig: {
+                functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO },
+              },
+            }
+          : {}),
       },
     });
 
