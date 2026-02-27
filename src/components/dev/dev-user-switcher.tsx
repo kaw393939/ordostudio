@@ -1,9 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useDevRole } from "./dev-role-context";
-
-const ALL_ROLES = ["USER", "APPRENTICE", "AFFILIATE", "ADMIN", "SUPER_ADMIN", "MAESTRO"] as const;
 
 interface DevUser {
   id: string;
@@ -12,7 +9,6 @@ interface DevUser {
 }
 
 export function DevUserSwitcher() {
-  const { roleOverride, isOverrideActive, setRoleOverride, clearOverride } = useDevRole();
   const [open, setOpen] = useState(false);
   const [users, setUsers] = useState<DevUser[]>([]);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
@@ -48,19 +44,16 @@ export function DevUserSwitcher() {
       });
       if (res.ok) {
         setCurrentUser(email);
-        clearOverride();
         window.location.reload();
       }
     } finally {
       setLoading(false);
     }
-  }, [clearOverride]);
+  }, []);
 
-  const activeLabel = isOverrideActive
-    ? `DEV: ${roleOverride?.join(", ")}`
-    : currentUser
-      ? `DEV: ${currentUser.split("@")[0]}`
-      : "DEV";
+  const activeLabel = currentUser
+    ? `DEV: ${currentUser.split("@")[0]}`
+    : "DEV";
 
   return (
     <div
@@ -73,14 +66,13 @@ export function DevUserSwitcher() {
         fontSize: 12,
       }}
     >
-      {/* Collapsed pill */}
       <button
         onClick={() => setOpen(!open)}
         style={{
           padding: "6px 12px",
           borderRadius: 20,
-          border: isOverrideActive ? "2px solid #eab308" : "1px solid #666",
-          background: isOverrideActive ? "#422006" : "#1a1a2e",
+          border: "1px solid #666",
+          background: "#1a1a2e",
           color: "#fff",
           cursor: "pointer",
           whiteSpace: "nowrap",
@@ -89,7 +81,6 @@ export function DevUserSwitcher() {
         {activeLabel}
       </button>
 
-      {/* Expanded panel */}
       {open && (
         <div
           style={{
@@ -106,89 +97,39 @@ export function DevUserSwitcher() {
             color: "#e0e0e0",
           }}
         >
-          {/* Role overlay section */}
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontWeight: "bold", marginBottom: 6 }}>Role Overlay</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-              {ALL_ROLES.map((role) => (
-                <button
-                  key={role}
-                  onClick={() => setRoleOverride([role])}
-                  style={{
-                    padding: "3px 8px",
-                    borderRadius: 4,
-                    border:
-                      isOverrideActive && roleOverride?.includes(role)
-                        ? "1px solid #eab308"
-                        : "1px solid #555",
-                    background:
-                      isOverrideActive && roleOverride?.includes(role)
-                        ? "#422006"
-                        : "#2a2a3e",
-                    color: "#fff",
-                    cursor: "pointer",
-                    fontSize: 11,
-                  }}
-                >
-                  {role}
-                </button>
-              ))}
-            </div>
-            {isOverrideActive && (
+          <div style={{ fontWeight: "bold", marginBottom: 6 }}>Switch User</div>
+          {users.length === 0 && (
+            <div style={{ color: "#888", fontSize: 11 }}>Loading…</div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {users.slice(0, 20).map((u) => (
               <button
-                onClick={clearOverride}
+                key={u.id}
+                onClick={() => switchToUser(u.email)}
+                disabled={loading}
                 style={{
-                  marginTop: 6,
-                  padding: "3px 8px",
+                  textAlign: "left",
+                  padding: "4px 8px",
                   borderRadius: 4,
-                  border: "1px solid #ef4444",
-                  background: "transparent",
-                  color: "#ef4444",
+                  border:
+                    currentUser === u.email
+                      ? "1px solid #22c55e"
+                      : "1px solid transparent",
+                  background:
+                    currentUser === u.email ? "#052e16" : "transparent",
+                  color: "#e0e0e0",
                   cursor: "pointer",
                   fontSize: 11,
                 }}
               >
-                Reset Overlay
+                <span>{u.email}</span>
+                {u.roles.length > 0 && (
+                  <span style={{ color: "#888", marginLeft: 6 }}>
+                    {u.roles.join(", ")}
+                  </span>
+                )}
               </button>
-            )}
-          </div>
-
-          {/* Real user section */}
-          <div>
-            <div style={{ fontWeight: "bold", marginBottom: 6 }}>Switch User</div>
-            {users.length === 0 && (
-              <div style={{ color: "#888", fontSize: 11 }}>Loading…</div>
-            )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {users.slice(0, 20).map((u) => (
-                <button
-                  key={u.id}
-                  onClick={() => switchToUser(u.email)}
-                  disabled={loading}
-                  style={{
-                    textAlign: "left",
-                    padding: "4px 8px",
-                    borderRadius: 4,
-                    border:
-                      currentUser === u.email
-                        ? "1px solid #22c55e"
-                        : "1px solid transparent",
-                    background:
-                      currentUser === u.email ? "#052e16" : "transparent",
-                    color: "#e0e0e0",
-                    cursor: "pointer",
-                    fontSize: 11,
-                  }}
-                >
-                  <span>{u.email}</span>
-                  {u.roles.length > 0 && (
-                    <span style={{ color: "#888", marginLeft: 6 }}>
-                      {u.roles.join(", ")}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
         </div>
       )}
