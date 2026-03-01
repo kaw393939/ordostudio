@@ -37,17 +37,22 @@ vi.mock("@/lib/api/intake", () => ({
 // ---------------------------------------------------------------------------
 
 describe("AGENT_TOOL_DEFINITIONS", () => {
-  it("contains exactly 5 tools", () => {
-    expect(AGENT_TOOL_DEFINITIONS).toHaveLength(5);
+  it("contains exactly 8 tools", () => {
+    expect(AGENT_TOOL_DEFINITIONS).toHaveLength(8);
   });
 
   it("includes all expected tool names", () => {
     const names = AGENT_TOOL_DEFINITIONS.map((d) => d.function.name);
+    // Core intake / booking tools
     expect(names).toContain("content_search");
     expect(names).toContain("get_site_setting");
     expect(names).toContain("submit_intake");
     expect(names).toContain("get_available_slots");
     expect(names).toContain("create_booking");
+    // Prospect / top-of-funnel tools (added sprint-prospect-agent)
+    expect(names).toContain("subscribe_to_newsletter");
+    expect(names).toContain("convert_subscriber_to_lead");
+    expect(names).toContain("capture_content_interest");
   });
 
   it("every definition has type 'function'", () => {
