@@ -10,6 +10,7 @@
  */
 
 import type OpenAI from "openai";
+import type { Content } from "@google/genai";
 import type { ConversationMessage } from "@/lib/api/conversation-store";
 
 /**
@@ -42,4 +43,21 @@ export function toOAIMessages(
     }
     return { role: "user" as const, content: m.content };
   });
+}
+
+/**
+ * Convert an array of `ConversationMessage` rows to the Gemini
+ * `Content[]` format.
+ *
+ * Gemini uses `user` / `model` roles (not `assistant`).
+ * Tool-role messages are skipped — tool results are handled inline
+ * by the agent loop in llm-gemini.ts.
+ */
+export function toGeminiContents(messages: ConversationMessage[]): Content[] {
+  return messages
+    .filter((m) => m.role !== "tool")
+    .map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
 }

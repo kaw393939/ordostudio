@@ -11,13 +11,11 @@
  *  - The outer POST handler only closes db on unexpected throws.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
 import { NextRequest } from "next/server";
-import { runOpenAIAgentLoopStream } from "@/lib/llm-openai";
 import { openCliDb } from "@/platform/runtime";
 import { resolveConfig } from "@/platform/config";
 import { AGENT_TOOL_DEFINITIONS, executeAgentTool } from "@/lib/api/agent-tools";
-import { runClaudeAgentLoopStream } from "@/lib/llm-anthropic";
 import { AGENT_SYSTEM_PROMPT as BASE_SYSTEM_PROMPT } from "@/lib/api/agent-system-prompt";
 import { parseAndValidateChatBody } from "@/lib/api/chat-body-parser";
 import {
@@ -30,7 +28,6 @@ import {
 } from "@/lib/api/conversation-store";
 import { checkRateLimit } from "@/lib/api/rate-limiter";
 import { buildAnthropicContentBlocks } from "@/lib/api/attachment-builder";
-import { toOAIMessages } from "@/lib/api/message-adapters";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -168,6 +165,12 @@ async function handleChatPost(
     });
   }
 
+  const geminiKey = process.env.GOOGLE_GEMINI_API_KEY;
+  if (geminiKey) {
+    // Gemini path — real token streaming. Transfers db ownership to the stream.
+    return buildGeminiStreamingResponse({ db, conversation, messages, systemPrompt });
+  }
+
   // OpenAI streaming — transfers db ownership to ReadableStream (same pattern as Claude)
   return buildOAIStreamingResponse({ db, conversation, messages, systemPrompt });
 }
@@ -291,8 +294,9 @@ function buildClaudeStreamingResponse(params: {
     db: params.db,
     conversation: params.conversation,
     messages: params.messages,
-    runLoop: (callbacks) =>
-      runClaudeAgentLoopStream({
+    runLoop: async (callbacks) => {
+      const { runClaudeAgentLoopStream } = await import("@/lib/llm-anthropic");
+      return runClaudeAgentLoopStream({
         apiKey: params.anthropicKey,
         systemPrompt: params.systemPrompt,
         history: priorTextMessages,
@@ -303,7 +307,38 @@ function buildClaudeStreamingResponse(params: {
         executeToolFn: async (name, args) => executeAgentTool(name, args, params.db),
         maxToolRounds: MAX_TOOL_ROUNDS,
         callbacks,
-      }),
+      });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Gemini: real token streaming
+// ---------------------------------------------------------------------------
+
+function buildGeminiStreamingResponse(params: {
+  db: ReturnType<typeof openCliDb>;
+  conversation: ConversationRow;
+  messages: ConversationMessage[];
+  systemPrompt: string;
+}): Response {
+  return buildStreamingResponse({
+    db: params.db,
+    conversation: params.conversation,
+    messages: params.messages,
+    runLoop: async (callbacks) => {
+      const { runGeminiAgentLoopStream } = await import("@/lib/llm-gemini");
+      const { toGeminiContents } = await import("@/lib/api/message-adapters");
+      const geminiMessages = toGeminiContents(params.messages);
+      return runGeminiAgentLoopStream({
+        systemPrompt: params.systemPrompt,
+        messages: geminiMessages,
+        tools: AGENT_TOOL_DEFINITIONS,
+        executeToolFn: async (name, args) => executeAgentTool(name, args, params.db),
+        maxToolRounds: MAX_TOOL_ROUNDS,
+        callbacks,
+      });
+    },
   });
 }
 
@@ -317,20 +352,22 @@ function buildOAIStreamingResponse(params: {
   messages: ConversationMessage[];
   systemPrompt: string;
 }): Response {
-  const oaiMessages = toOAIMessages(params.messages);
-
   return buildStreamingResponse({
     db: params.db,
     conversation: params.conversation,
     messages: params.messages,
-    runLoop: (callbacks) =>
-      runOpenAIAgentLoopStream({
+    runLoop: async (callbacks) => {
+      const { runOpenAIAgentLoopStream } = await import("@/lib/llm-openai");
+      const { toOAIMessages } = await import("@/lib/api/message-adapters");
+      const oaiMessages = toOAIMessages(params.messages);
+      return runOpenAIAgentLoopStream({
         systemPrompt: params.systemPrompt,
         messages: oaiMessages,
         tools: AGENT_TOOL_DEFINITIONS,
         executeToolFn: async (name, args) => executeAgentTool(name, args, params.db),
         maxToolRounds: MAX_TOOL_ROUNDS,
         callbacks,
-      }),
+      });
+    },
   });
 }
