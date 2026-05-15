@@ -1,5 +1,27 @@
 # Studio Ordo Platform
 
+<!-- portfolio-curation -->
+## Portfolio Overview
+Primary Studio Ordo platform repository for governed AI operator workflows and productized orchestration.
+
+## What This Demonstrates
+- AI operators
+- workflow governance
+- product platform architecture
+
+## Stack
+TypeScript, Next.js
+
+## Portfolio Status
+This repository is part of Keith Williams' curated public portfolio. The README has been updated to explain the project purpose, technical focus, and why the work is worth reviewing.
+<!-- /portfolio-curation -->
+
+---
+
+## Original Notes
+
+# Studio Ordo Platform
+
 >[!NOTE]
 > **Owner:** Keith Williams — Founder, Studio Ordo · Senior Lecturer, NJIT Center for Enterprise AI
 > **Started:** 2025 · **Last updated:** February 25, 2026
@@ -325,4 +347,5 @@ Decision and context letters written to the project:
 - **Agent changes:** update `src/lib/api/agent-system-prompt.ts` + restart the dev server (prompt is imported at module load time, not hot-reloaded).
 - **Evals:** any change to agent tools, system prompt, or routing logic must keep `npm run evals` green.
 - **PR checklist:** [`docs/frontend-pr-checklist.md`](docs/frontend-pr-checklist.md)
+
 
