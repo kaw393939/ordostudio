@@ -37,6 +37,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "@aws-sdk/client-s3": "^3.995.0",
+    "@google/genai": "^1.43.0",
     "@hookform/resolvers": "^5.2.2",
     "@node-rs/argon2": "^2.0.2",
     "better-sqlite3": "^12.6.2",

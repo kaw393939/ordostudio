@@ -19,7 +19,6 @@
 
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { runClaudeAgentLoopStream } from "@/lib/llm-anthropic";
 import { openCliDb } from "@/platform/runtime";
 import { resolveConfig } from "@/platform/config";
 import { getSessionUserFromRequest } from "@/lib/api/auth";
@@ -115,8 +114,21 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
-  const apiKey =
-    process.env.ANTHROPIC_API_KEY ?? process.env.API__ANTHROPIC_API_KEY ?? "";
+  const anthropicKey =
+    process.env.ANTHROPIC_API_KEY ?? process.env.API__ANTHROPIC_API_KEY;
+  const geminiKey = process.env.GOOGLE_GEMINI_API_KEY;
+
+  if (!anthropicKey && !geminiKey && !process.env.OPENAI_API_KEY) {
+    return problem(
+      {
+        type: "https://lms-219.dev/problems/config-error",
+        title: "Configuration Error",
+        status: 500,
+        detail: "No LLM API key configured.",
+      },
+      request,
+    );
+  }
 
   const config = resolveConfig({ envVars: process.env });
   const db = openCliDb(config);
@@ -124,20 +136,57 @@ export async function POST(request: NextRequest): Promise<Response> {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        await runClaudeAgentLoopStream({
-          apiKey,
-          systemPrompt: MAESTRO_SYSTEM_PROMPT,
-          history: parsed.history ?? [],
-          userMessage: parsed.message,
-          tools: MAESTRO_TOOLS,
-          executeToolFn: async (name, args) =>
-            executeMaestroTool(name, args, db),
-          callbacks: {
-            onDelta(text) {
-              controller.enqueue(sseData({ delta: text }));
-            },
+        const callbacks = {
+          onDelta(text: string) {
+            controller.enqueue(sseData({ delta: text }));
           },
-        });
+        };
+
+        if (anthropicKey) {
+          const { runClaudeAgentLoopStream } = await import("@/lib/llm-anthropic");
+          await runClaudeAgentLoopStream({
+            apiKey: anthropicKey,
+            systemPrompt: MAESTRO_SYSTEM_PROMPT,
+            history: parsed.history ?? [],
+            userMessage: parsed.message,
+            tools: MAESTRO_TOOLS,
+            executeToolFn: async (name, args) =>
+              executeMaestroTool(name, args, db),
+            callbacks,
+          });
+        } else if (geminiKey) {
+          const { runGeminiAgentLoopStream } = await import("@/lib/llm-gemini");
+          const history = (parsed.history ?? []).map((h) => ({
+            role: h.role === "assistant" ? "model" : "user",
+            parts: [{ text: h.text }],
+          }));
+          history.push({ role: "user", parts: [{ text: parsed.message }] });
+          await runGeminiAgentLoopStream({
+            systemPrompt: MAESTRO_SYSTEM_PROMPT,
+            messages: history,
+            tools: MAESTRO_TOOLS,
+            executeToolFn: async (name, args) =>
+              executeMaestroTool(name, args, db),
+            callbacks,
+          });
+        } else {
+          const { runOpenAIAgentLoopStream } = await import("@/lib/llm-openai");
+          const oaiHistory = [
+            ...(parsed.history ?? []).map((h) => ({
+              role: h.role as "user" | "assistant",
+              content: h.text,
+            })),
+            { role: "user" as const, content: parsed.message },
+          ];
+          await runOpenAIAgentLoopStream({
+            systemPrompt: MAESTRO_SYSTEM_PROMPT,
+            messages: oaiHistory,
+            tools: MAESTRO_TOOLS,
+            executeToolFn: async (name, args) =>
+              executeMaestroTool(name, args, db),
+            callbacks,
+          });
+        }
 
         controller.enqueue(sseData({ done: true }));
         controller.close();
